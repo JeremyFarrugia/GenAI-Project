@@ -1,38 +1,47 @@
 <!DOCTYPE html>
-<html lang = "en">
+<html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="description" content="">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="{{ url_for('static', filename='assets/icon.png') }}">
-  <title>slop center</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="{{ url_for('static', filename='assets/icon.png') }}">
+    <title>slop center</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-  <script src="{{ url_for('static', filename='scripts/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/script.js') }}"></script>
 </head>
 
 <body>
-  <!-- Title -->
-  <div class = "title-container" id="page-title">
-    <h1 class="title">Slop center :)</h1>
-  </div>
-
-  <!-- Modal Error box -->
-  <div id="modalPopup" class="modal"> <!-- I think this may come in handy, it is also from another project -->
-    <div class="modal-content">
-      <span class="close">&times;</span>
-      <p id="modal-message"></p>
+    <!-- Title -->
+    <div class="title-container" id="page-title">
+        <h1 class="title">Slop center :)</h1>
     </div>
-  </div>
 
-  <footer>
-    <p> Project by Jeremy, Luke & Rhea </p>
-    <p><a id="info-button" href="#info-area"> Click Here to find out More... </a></p> <!-- I had done this in another project, we can adapt it or just ignore it -->
-  </footer>
+    <!-- Modal Error box -->
+    <div id="modalPopup" class="modal"> <!-- I think this may come in handy, it is also from another project -->
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <p id="modal-message"></p>
+        </div>
+    </div>
+
+    <div id="output"></div>
+    <div id="input-container">
+        <input type="text" id="prompt-input" placeholder="Enter Prompt" />
+        <button id="execute-btn" onclick="executePrompt()">Send</button>
+    </div>
+
+    <footer>
+        <p> Project by Jeremy, Luke & Rhea </p>
+        <p><a id="info-button" href="#info-area"> Click Here to find out More... </a></p>
+        <!-- I had done this in another project, we can adapt it or just ignore it -->
+    </footer>
 </body>
+
 </html>

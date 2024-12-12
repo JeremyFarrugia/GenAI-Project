@@ -85,3 +85,38 @@ div {
     text-decoration: none;
     cursor: pointer;
 }
+
+#output {
+    flex-grow: 1;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 10px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+#input-container {
+    display: flex;
+    background: #333;
+    padding: 10px;
+}
+#prompt-input {
+    flex-grow: 1;
+    background: #2e2e2e;
+    color: #fff;
+    border: none;
+    padding: 10px;
+    font-size: 16px;
+}
+#prompt-input:focus {
+    outline: none;
+}
+#execute-btn {
+    background: #007acc;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+}
+#execute-btn:hover {
+    background: #005f9e;
+}

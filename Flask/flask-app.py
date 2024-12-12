@@ -1,5 +1,6 @@
-from flask import Flask, render_template, send_from_directory, abort
+from flask import Flask, render_template, send_from_directory, abort, request, jsonify
 import os, json
+from typing import Union
 
 app = Flask(__name__)
 
@@ -23,12 +24,45 @@ def authenticate_and_send_file(token: str, file_path: str):
     else:
         abort(403)
 
+def log_to_console(message: str, tag: Union[str | None] = None, spacing: int = 0):
+    """Log a message to the console"""
+    if tag is None:
+        tag = "ROOT"
+    spacing = max(0, spacing)
+    spacing = min(5, spacing)
+    space = "\n" * spacing
+    print(f"{space}SERVER LOG [{tag}] {message}{space}")
+
 #-----------------------------------------------------Routes-----------------------------------------------------#
 
 # Index page
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/prompt', methods=['POST'])
+def prompt():
+    data = request.json
+    user_prompt = data.get('prompt', '')
+
+    log_to_console(f"Received prompt: {user_prompt}", tag="PROMPT", spacing=1)
+
+    try:
+        # Run prompt
+        reply = "I repeat what you say: " + user_prompt
+        if user_prompt == "error":
+            raise Exception("Why would you want to see an error?")
+        
+
+        return jsonify({
+            'success': True,
+            'reply': reply
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
 #-----------------------------------------------------Error Handling-----------------------------------------------------#
 
