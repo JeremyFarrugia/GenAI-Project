@@ -19,9 +19,15 @@
 
 <body>
     <!-- Title -->
-    <div class="title-container" id="page-title">
-        <h1 class="title">Slop center :)</h1>
-    </div>
+    {% include 'header.html' %}
+
+    <!-- Account modals -->
+    {% include 'account_modals.html' %}
+
+    <!-- A bit of a hack but it makes something work nicely -->
+    <script>
+        const audioIconUrl = "{{ url_for('static', filename='assets/audio.png') }}";
+    </script>
 
     <!-- Modal Error box -->
     <div id="modalPopup" class="modal"> <!-- I think this may come in handy, it is also from another project -->

@@ -1,0 +1,42 @@
+<div id="loginModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeLogin()">&times;</span>
+        <h2>Log In</h2>
+        <form id="loginForm">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required placeholder="Enter your username">
+
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required placeholder="Enter your password">
+
+            <button type="submit">Log In</button>
+        </form>
+        <button id="createAccountButton" onclick="switchToRegisterModal()">Create New Account Instead</button>
+    </div>
+</div>
+
+<div id="registerModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeRegister()">&times;</span>
+        <h2>Create Account</h2>
+        <form id="registerForm">
+            <label for="register-username">Username:</label>
+            <input type="text" id="register-username" name="register-username" required placeholder="Create your username">
+
+            <label for="register-password">Password:</label>
+            <input type="register-password" id="register-password" name="register-password" required placeholder="Create your password">
+
+            <button type="submit">Create Account</button>
+        </form>
+        <button id="switchToLoginButton" onclick="switchToLoginModal()">Switch to Log In</button>
+    </div>
+</div>
+
+<div id="accountModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeDetails()">&times;</span>
+        <h2>Logged in as:</h2>
+        <p id="accountUsername">404</p>
+        <button id="changeUserButton" onclick="changeUser()">Log in as a different user</button>
+    </div>
+</div>

@@ -9,10 +9,12 @@
     --grey: #808080;
     --light-grey: #b5b5b5;
     --dark-grey: #646464;
+    --main-background: var(--black);
+    --chat-background: #1e1e1e;
 }
 
 body {
-    background-color: var(--black);
+    background-color: var(--main-background);
     color: var(--white);
     font-family: 'Roboto', sans-serif;
     margin: 0;
@@ -88,7 +90,7 @@ div {
 
 #output {
     flex-grow: 1;
-    background: #1e1e1e;
+    background: var(--chat-background);
     color: #d4d4d4;
     padding: 10px;
     overflow-y: auto;
@@ -119,4 +121,90 @@ div {
 }
 #execute-btn:hover {
     background: #005f9e;
+}
+
+#output div {
+    margin: 0;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 10px;
+    padding-right: 10px;
+    border-radius: 5px;
+    overflow-wrap: normal;
+    width: fit-content; 
+    max-width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+    height: fit-content;
+    background-color: var(--grey);
+}
+
+#user-button {
+    display: none;
+}
+
+.modal-content h2 {
+    color: var(--black);
+    font-size: 1.5em;
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.header {
+    position: sticky;
+    top: 0;
+    background-color: var(--chat-background); /* Currently set up to blend with chat background */
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    z-index: 1000;
+}
+
+.header-title {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.header-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    text-decoration: none;
+}
+
+.header-button:hover {
+    background-color: #0056b3;
+}
+
+.text-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.model-response-container button {
+    display: flex;
+    padding: 10px;
+    margin-left: 15px;
+    background: none;
+    border: none;
+    width: fit-content;
+    height: fit-content;
+    color: var(--white);
+    font-size: 1.5em;
+    cursor: pointer;
+}
+
+.audio-button img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    cursor: pointer;
 }
