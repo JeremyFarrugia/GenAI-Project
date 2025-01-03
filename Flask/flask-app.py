@@ -7,6 +7,38 @@ import numpy as np
 import soundfile as sf
 from typing import Union
 
+
+from transformers import VitsModel, AutoTokenizer
+import torch
+import scipy.io.wavfile as wav
+
+model = VitsModel.from_pretrained("facebook/mms-tts-eng")
+tokeniser = AutoTokenizer.from_pretrained("facebook/mms-tts-eng")
+
+text = "some example text in the English language"
+inputs = tokeniser(text, return_tensors="pt")
+
+with torch.no_grad():
+    output = model(**inputs).waveform
+
+
+def generate_tts_file(text: str, output_path: str) -> None:
+    """
+    Generate a TTS audio file from the given text and save it to the output path
+    """
+    log_to_console(f"Generating TTS audio file for text: {text}", tag="GENERATE-TTS-FILE", spacing=1)
+    inputs = tokeniser(text, return_tensors="pt")
+
+    with torch.no_grad():
+        output = model(**inputs).waveform.squeeze(0)  # Remove batch dimension if present
+
+    # Scale waveform to int16
+    audio_data = (output.numpy() * 32767).astype(np.int16)  # Scale to 16-bit PCM
+
+    log_to_console(f"Saving audio file to: {output_path}", tag="GENERATE-TTS-FILE", spacing=1)
+    wav.write(output_path, rate=model.config.sampling_rate, data=audio_data)
+    log_to_console(f"Audio file saved successfully", tag="GENERATE-TTS-FILE", spacing=1)
+
 import sqlite3
 
 
@@ -34,8 +66,8 @@ images
 
 AUTHENTICATION_TOKEN = 'a123' # Authentication token for the user
 
-from TTS.api import TTS
-tts = TTS("tts_models/en/ljspeech/tacotron2-DDC")
+#from TTS.api import TTS
+#tts = TTS("tts_models/en/ljspeech/tacotron2-DDC")
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 STATIC_DIR = os.path.join(SCRIPT_DIR, 'static')
@@ -175,7 +207,9 @@ def generate_audio():
             log_to_console(f"Audio file for message {request_data['index']} in chat {request_data['chatID']} already exists", tag="GENERATE-AUDIO", spacing=1)
             return send_file(output_path, mimetype='audio/wav')
 
-        tts.tts_to_file(request_data['text'], file_path=output_path)
+        #tts.tts_to_file(request_data['text'], file_path=output_path)
+
+        generate_tts_file(request_data['text'], output_path)
 
         # Return the audio file to the client
         return send_file(output_path, mimetype='audio/wav')
