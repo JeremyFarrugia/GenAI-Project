@@ -6,6 +6,9 @@ var user = 'Guest'; // The user's name (temporary)
 var chatID = 1; // The chat ID
 var canPrompt = false; // Whether the user can prompt the model or not
 var loggedIn = false; // Whether the user is logged in or not
+var generatingAudio = false; //
+
+var audio = new Audio();
 
 var loginModal;
 var loginButton;
@@ -75,8 +78,15 @@ function closeLogin() {
 function swapLoginButton() {
     loginButton = document.getElementById('login-button');
     userButton = document.getElementById('user-button');
-    loginButton.style.display = 'none';
-    userButton.style.display = 'block';
+    if (loginButton.style.display === 'none') {
+        loginButton.style.display = 'block';
+        userButton.style.display = 'none';
+    } else {
+        loginButton.style.display = 'none';
+        userButton.style.display = 'block';
+    }
+    /*loginButton.style.display = 'none';
+    userButton.style.display = 'block';*/
 }
 
 function switchToRegisterModal() {
@@ -106,7 +116,7 @@ function closeDetails() {
     accountModal.style.display = 'none';
 }
 
-function loginSuccess(username) {
+async function loginSuccess(username, setCookie = false) {
     loggedIn = true;
     user = username;
 
@@ -116,13 +126,36 @@ function loginSuccess(username) {
     // Update the account details button
     document.getElementById('user-button').innerText = user;
 
+    if (setCookie) {
+        try {
+            const response = await fetch('/set-login-cookie', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                })
+            });
+    
+            const result = await response.json();
+            if (response.ok) {
+                console.log('Cookie set:', result.message);
+            } else {
+                console.error('Error setting cookie:', result.error);
+            }
+        } catch (error) {
+            console.error('Error setting cookie:', error);
+        }
+    }
+
 
     swapLoginButton();
     getChatID();
 }
 
 async function checkSession() {
-    try {
+    /*try { // Deprecated, using cookies instead
         const response = await fetch('/session-status', {
             method: 'GET',
             credentials: 'include' // Include session cookies
@@ -139,7 +172,26 @@ async function checkSession() {
         }
     } catch (error) {
         console.error('Error checking session status:', error);
-    }
+    }*/
+    
+        try {
+            const response = await fetch('/login-status', {
+                method: 'GET',
+                credentials: 'include' // Include session cookies
+            });
+    
+            const result = await response.json();
+    
+            if (result.logged_in) {
+                console.log(`User is logged in as: ${result.user}`);
+                loginSuccess(result.user, setCookie = false);
+            } else {
+                console.log('User is not logged in.');
+                // UI is already set up
+            }
+        } catch (error) {
+            console.error('Error checking session status:', error);
+        }
 }
 
 async function attemptLogin(event) {
@@ -164,7 +216,7 @@ async function attemptLogin(event) {
             alert(result.message);
             loginModal.style.display = 'none'; // Close login modal on successful login
 
-            loginSuccess(username);
+            loginSuccess(username, setCookie = true);
         } else {
             console.error('Error logging in:', result.error);
             alert(result.error);
@@ -172,6 +224,45 @@ async function attemptLogin(event) {
     } catch (error) {
         console.error('Error logging in:', error);
         alert('An error occurred.');
+    }
+}
+
+async function logout() {
+    try {
+        const response = await fetch('/logout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username: user
+            })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            // Close the account details modal
+            closeDetails();
+
+            console.log(result.message);
+            loggedIn = false;
+            canPrompt = false;
+
+            swapLoginButton();
+
+            // Clear the user's account details
+            document.getElementById('accountUsername').innerText = 'Guest';
+            
+            // Clear the account details button
+            document.getElementById('user-button').innerText = 'Guest';
+
+            // Clear the chat ID
+            chatID = 1;
+            outputDiv.innerHTML = ''; // Clear the chat history
+        }
+    }
+    catch (error) {
+        console.error('Error logging out:', error);
     }
 }
 
@@ -197,7 +288,7 @@ async function createUser(event) {
             alert(result.message);
             registerModal.style.display = 'none'; // Close registration modal on successful login
 
-            loginSuccess(username);
+            loginSuccess(username, setCookie = true);
         } else {
             console.error('Error creating user:', result.error);
             alert(result.error);
@@ -346,10 +437,18 @@ async function executePrompt() {
 
 async function playAudio(parentDiv) {
     stopAudio(); // This doesn't work :)
-    if (isAudioPlaying()) { // Neither does this
-        alert('An audio is already playing.');
+    if (isAudioPlaying()) { // Fixed this one though :)
+        alert('Already playing audio. Please wait for the current audio to finish.');
         return;
     }
+
+
+    if (generatingAudio) { // Prevent multiple audio generations at once (user spamming the button while waiting)
+        console.log('Audio already being generated, ignoring button press.');
+        return;
+    }
+
+    generatingAudio = true;
 
     // Get the model response text
     const modelResponse = parentDiv.getElementsByClassName('model-response')[0];
@@ -364,7 +463,7 @@ async function playAudio(parentDiv) {
     
 
     try {
-        const response = await fetch('/generate-audio', {
+        const response = await fetch('/generate-tts', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -383,17 +482,24 @@ async function playAudio(parentDiv) {
 
         const audioBlob = await response.blob();
         const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
+        audio = new Audio(audioUrl);
         audio.play();
+
+        // Get audio duration
+
+
     }
     catch (error) {
         outputDiv.innerHTML += `<p style="color: red;" class = model-error>Error: ${error}</p>`;
     }
+    finally {
+        generatingAudio = false;
+    }
 }
 
 function isAudioPlaying() {
-    const audio = document.getElementsByTagName('audio')[0];
-    return audio && !audio.paused;
+    console.log('audio.paused: ' + audio.paused);
+    return !audio.paused;
 }
 
 function stopAudio() {
