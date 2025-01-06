@@ -189,6 +189,31 @@ div {
     align-items: center;
 }
 
+.chat-container-inner {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+    text-align: left;
+}
+
+.chat-container-inner h3 {
+    margin-bottom: 0px;
+}
+
+.model-response-container h3{
+    text-align: left;
+    align-self: flex-start;
+    margin-left: 10px;
+}
+
+.user-prompt-container h3 {
+    text-align: right;
+    align-self: flex-end;
+    margin-right: 10px;
+}
+
 .model-response-container button {
     display: flex;
     padding: 10px;

@@ -395,7 +395,10 @@ async function executePrompt() {
     // Display the prompt in the output
     outputDiv.innerHTML += `
         <div class="user-prompt-container text-container">
-            <p style="color: #00ff00;" class = user-prompt>${user}> ${prompt}</p>
+            <div class="chat-container-inner">
+                <h3 class="user-prompt-header">${user}</h3>
+                <p style="color: #00ff00;" class = user-prompt>${prompt}</p>
+            </div>
         </div>
     `;
 
@@ -416,7 +419,10 @@ async function executePrompt() {
             if (result.reply) {
                 outputDiv.innerHTML += `
                     <div class="model-response-container text-container">
-                        <p class=model-response>david> ${result.reply}</p>
+                        <div class="chat-container-inner">
+                            <h3 class="model-response-header">Dino</h3>
+                            <p class=model-response>${result.reply}</p>
+                        </div>
                         <button class="audio-button">
                             <img src="${audioIconUrl}" alt="Play audio" class="audio-icon">
                         </button>
