@@ -5,6 +5,7 @@ var promptHistoryIndex = 0;
 var user = 'User'; // The user's name (temporary)
 var loggedIn = false; // Whether the user is logged in or not
 var generatingAudio = false; //
+var generatingStory = false; // Prevent multiple story generations at once
 
 var audio = new Audio();
 
@@ -20,6 +21,8 @@ var accountModal;
 var generated = []; // Used to avoid generating the same audio multiple times
 
 // TODO - Organise into sub-scripts
+
+const socket = io();
 
 document.addEventListener("DOMContentLoaded", async function (event) {
     outputDiv = document.getElementById('output');
@@ -50,6 +53,12 @@ document.addEventListener("DOMContentLoaded", async function (event) {
                 // Access the parent div of the clicked button
                 const parentDiv = event.target.closest('.model-response-container');
                 playAudio(parentDiv);
+            }
+            else if (event.target && event.target.matches('button.generate-button')) {
+                // Access the parent div of the clicked button
+                const parentDiv = event.target.closest('.model-response-container');
+                
+                generateStory(parentDiv);
             }
         });
 
@@ -385,6 +394,7 @@ async function executePrompt() {
                         <div class="chat-container-inner">
                             <h3 class="model-response-header">Dino</h3>
                             <p class=model-response>${result.reply}</p>
+                            <button class="generate-button"> Create Story </button>
                         </div>
                         <button class="audio-button">
                             <img src="${audioIconUrl}" alt="Play audio" class="audio-icon">
@@ -403,6 +413,60 @@ async function executePrompt() {
     window.scrollTo(0, document.body.scrollHeight);
     promptInput.value = '';
 }
+
+async function generateStory(parentDiv) {
+    if (generatingStory) {
+        console.log('Already generating a story, please wait.');
+        return;
+    }
+
+    generatingStory = true;
+
+    
+
+    const data = {
+        content: parentDiv.getElementsByClassName('model-response')[0].innerText,
+        username: user
+    };
+
+    socket.emit('generate-story', data);
+
+}
+
+socket.on('story-progress', (data) => {
+    outputDiv.innerHTML += `<p>${data.message}</p>`;
+});
+
+socket.on('story-error', (data) => {
+    outputDiv.innerHTML += `<p style="color: red;" class = model-error>Error: ${data.error}</p>`;
+    generatingStory = false;
+});
+
+socket.on('story-complete', (data) => {
+    outputDiv.innerHTML += `
+        <p>${data.message}</p>
+    `;
+
+    generatingStory = false;
+
+    outputDiv.innerHTML += `
+        <p>Redirecting in...</p>
+        <p>3</p>
+    `;
+    
+    // Countdown to redirect
+    let count = 3;
+    const interval = setInterval(() => {
+        count -= 1;
+        outputDiv.lastElementChild.innerText = count;
+
+        if (count === 0) {
+            clearInterval(interval);
+            window.location.href = `/stories-${user}`;
+        }
+    }, 1000);
+    
+});
 
 async function playAudio(parentDiv) {
     stopAudio(); // This doesn't work :)

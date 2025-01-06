@@ -1,6 +1,8 @@
-from flask import Flask, render_template, send_from_directory, abort, request, jsonify, send_file, session, url_for, Response
+from flask import Flask, render_template, send_from_directory, abort, request, jsonify, send_file, session, url_for, Response, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
+from flask_socketio import SocketIO, emit
+
 import os, json
 import numpy as np
 import soundfile as sf
@@ -56,6 +58,7 @@ CLEAR_TEMP_ON_START = True # Flag to clear all temporary files on server start
 
 # NOTE: Debug mode causes the audio generation models to crash the server, but if set to false you will have to manually restart the server to see changes
 DEBUG = True
+# I have also been informed that the reloader causes issues with groq
 
 #-------------------------------------------------------Server Setup-------------------------------------------------------#
 
@@ -71,7 +74,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False # Disable modification trac
 db = SQLAlchemy(app) # Create a database object
 bcrypt = Bcrypt(app) # Create a bcrypt object for password hashing
 
-client = Groq(api_key=os.getenv("GROQ_KEY")) # Create a GROQ client for chat completion
+socketio = SocketIO(app)
+
+if not DEBUG:
+    client = Groq(api_key=os.getenv("GROQ_KEY")) # Create a GROQ client for chat completion
 
 tts_model = VitsModel.from_pretrained("facebook/mms-tts-eng") # https://huggingface.co/facebook/mms-tts-eng  Consider wavnet? I think it's better but it requires use of google cloud services
 tokeniser = AutoTokenizer.from_pretrained("facebook/mms-tts-eng") 
@@ -319,6 +325,15 @@ def prompt():
 
     log_to_console(f"Received prompt: {user_prompt}", tag="PROMPT", spacing=1)
 
+    if user_prompt == "error":
+            raise Exception("Why would you want to see an error?")
+
+    if DEBUG:
+        return jsonify({
+            'success': True,
+            'reply': "This is a test reply"
+        })
+    
     try:
         completion = client.chat.completions.create(
         model="llama-3.3-70b-specdec",
@@ -340,10 +355,6 @@ def prompt():
         reply = completion.choices[0].message.content
         
         log_to_console(f"Reply: {reply}", tag="PROMPT", spacing=1)
-        # Run prompt
-        if user_prompt == "error":
-            raise Exception("Why would you want to see an error?")
-        
 
         return jsonify({
             'success': True,
@@ -535,6 +546,18 @@ def session_status():
         return jsonify({'loggedIn': True, 'user': session['username']})
     else:
         return jsonify({'loggedIn': False})
+    
+import time
+@socketio.on('generate-story')
+def generate_story(data):
+    emit('story-progress', {'message': 'Generating story...'})
+    username = data.get('username', None)
+    story_content = data.get('content', None)
+
+    log_to_console(f"Received story content: {story_content}", tag="GENERATE-STORY", spacing=1)
+    time.sleep(3) # Simulate story generation
+
+    emit('story-complete', {'message': 'Story generated successfully!'})
 
 #-----------------------------------------------------Error Handling-----------------------------------------------------#
 
