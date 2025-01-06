@@ -283,7 +283,8 @@ def tts_request():
             'text': request.json.get('text', ''),
             'username': request.json.get('username', ''),
             'chatID': request.json.get('chatID', ''),
-            'index': request.json.get('index', '')
+            'index': request.json.get('index', ''),
+            'alreadyGenerated': request.json.get('alreadyGenerated', False)
         }
 
         log_to_console(f"Received request to generate tts: {request_data}", tag="GENERATE-TTS", spacing=1)
@@ -296,7 +297,7 @@ def tts_request():
         output_path = os.path.join(output_path, f"{request_data['chatID']}_{request_data['index']}.wav")
 
         # Check if the audio file already exists
-        if os.path.exists(output_path):
+        if request_data['alreadyGenerated'] and os.path.exists(output_path):
             log_to_console(f"Audio file for message {request_data['index']} in chat {request_data['chatID']} already exists", tag="GENERATE-TTS", spacing=1)
             return send_file(output_path, mimetype='audio/wav')
 

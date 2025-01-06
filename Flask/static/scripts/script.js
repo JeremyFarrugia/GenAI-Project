@@ -19,6 +19,8 @@ var registerButton;
 
 var accountModal;
 
+var generated = []; // Used to avoid generating the same audio multiple times
+
 document.addEventListener("DOMContentLoaded", async function (event) {
     outputDiv = document.getElementById('output');
     promptInput = document.getElementById('prompt-input');
@@ -466,6 +468,17 @@ async function playAudio(parentDiv) {
     const index = Array.from(modelResponses).indexOf(modelResponse);
 
     console.log('index: ' + index);
+
+    shouldExist = false;
+
+    // Check if the audio has already been generated
+    if (generated.includes(index)) {
+        console.log('Audio already generated');
+        shouldExist = true;
+    }
+    else {
+        console.log('Audio not generated yet');
+    }
     
 
     try {
@@ -479,12 +492,15 @@ async function playAudio(parentDiv) {
                 username: user,
                 chatID: chatID,
                 index: index,
+                alreadyGenerated: shouldExist,
             })
         });
 
         if(!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
+
+        generated.push(index);
 
         const audioBlob = await response.blob();
         const audioUrl = URL.createObjectURL(audioBlob);
