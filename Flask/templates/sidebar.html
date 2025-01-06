@@ -1,0 +1,14 @@
+<script src="{{ url_for('static', filename='scripts/sidebar.js') }}"></script>
+<div class="sidebar">
+    <div class="sidebar-header">
+        <h4>Phillip Frank</h4>
+        <button class="toggle-sidebar" onclick="toggleSidebar()">
+            <img src="{{ url_for('static', filename='assets/sidebar.png') }}" alt="Toggle Sidebar">
+        </button>
+    </div>
+    <ul class="sidebar-menu">
+        <li><a href="/">Chat</a></li>
+        <li><a onclick="redirectToStories()">Your Stories</a></li>
+        <li><a href="{{ url_for('public_stories') }}">Public Stories</a></li>
+    </ul>
+</div>

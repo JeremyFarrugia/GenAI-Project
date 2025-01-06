@@ -59,8 +59,8 @@ div {
     z-index: 1;
     left: 0;
     top: 0;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     overflow: auto;
     background-color: rgba(0, 0, 0, 0.4);
 }
@@ -187,6 +187,29 @@ div {
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+.chat-container-inner {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+    text-align: left;
+}
+
+.chat-container-inner h3 {
+    margin-bottom: 0px;
+}
+
+.model-response-container h3{
+    text-align: left;
+    align-self: flex-start;
+}
+
+.user-prompt-container h3 {
+    text-align: right;
+    align-self: flex-end;
 }
 
 .model-response-container button {
