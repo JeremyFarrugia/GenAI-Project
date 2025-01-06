@@ -14,6 +14,10 @@ import torchaudio
 from audiocraft.models import AudioGen, MusicGen 
 from audiocraft.data.audio import audio_write
 
+from PIL import Image
+from io import BytesIO
+import base64
+
 import sqlite3
 
 """
@@ -47,7 +51,7 @@ AUDIO_DIR = os.path.join(STATIC_DIR, 'audio')
 CLEAR_TEMP_ON_START = True # Flag to clear all temporary files on server start
 
 # NOTE: Debug mode causes the audio generation models to crash the server, but if set to false you will have to manually restart the server to see changes
-DEBUG = False
+DEBUG = True
 
 #-------------------------------------------------------Server Setup-------------------------------------------------------#
 
@@ -125,7 +129,7 @@ def create_user(user_name: str, password: str) -> None:
     user_dir = os.path.join(USERDATA_DIR, user_name)
     os.makedirs(user_dir)
     os.makedirs(os.path.join(user_dir, 'temp'))
-    os.makedirs(os.path.join(user_dir, 'chat history'))
+    os.makedirs(os.path.join(user_dir, 'stories'))
 
 def loginSuccess(username: str) -> None:
     """
@@ -240,12 +244,67 @@ def validate_request(text: str, username: str, tag: str) -> tuple[bool, Response
 
     return True, None, 0 # Success
 
+def get_thumbnail(thumbnail_path, debug: bool = False) -> Union[str, None]:
+    """Get the thumbnail for a file if it exist otherwise return None"""
+    log_to_console(f"Checking for thumbnail at path: {thumbnail_path}", tag="THUMBNAIL", spacing=1)
+
+    if os.path.exists(thumbnail_path):
+        with open(thumbnail_path, 'rb') as thumbnail_file:
+            thumbnail = base64.b64encode(thumbnail_file.read()).decode('utf-8')
+        return thumbnail
+    else:
+        log_to_console(f"Thumbnail not found at path: {thumbnail_path}", tag="THUMBNAIL", spacing=1)
+        raise FileNotFoundError(f"Thumbnail not found at path: {thumbnail_path}")
+
 #-----------------------------------------------------Routes-----------------------------------------------------#
+
+#-------------------------------------Pages-------------------------------------#
 
 # Index page
 @app.route('/')
+@app.route('/chat')
 def index():
     return render_template('index.html')
+
+@app.route('/stories-<username>')
+def user_stories(username):
+
+    userData = os.path.join(USERDATA_DIR, username)
+
+    if username is None:
+        return render_template('content_not_found.html', error="No user provided"), 404
+    elif not User.query.filter_by(username=username).first():
+        return render_template('content_not_found.html', error="User not found"), 404
+    elif not os.path.exists(userData):
+        return render_template('content_not_found.html', error="User data not found"), 404
+    elif username != session.get('username', None): # I'm not sure this is the best way to check if the user is logged in
+        return render_template('forbidden_access.html', error="You do not have permission to access this page"), 403
+    
+    # Get the stories for the user
+    stories = os.listdir(os.path.join(userData, 'stories'))
+
+    story_data = []
+    for story in stories:
+        log_to_console(f"Checking story: {story}", tag="USER-STORIES", spacing=1)
+        thumbnail = os.path.join(userData, 'stories', story, 'thumbnail.jpg')
+        thumbnail = get_thumbnail(thumbnail)
+        title = story
+        url = url_for('story', username=username, story=story)
+
+        story_data.append({
+            'thumbnail': thumbnail,
+            'title': title,
+            'url': url
+        })
+
+    return render_template('user_stories.html', username=username, stories=story_data)
+
+@app.route('/public_stories')
+def public_stories():
+    return render_template('public_stories.html')
+
+
+#--------------------------------------API--------------------------------------#
 
 @app.route('/prompt', methods=['POST'])
 def prompt():
@@ -282,7 +341,6 @@ def tts_request():
         request_data = {
             'text': request.json.get('text', ''),
             'username': request.json.get('username', ''),
-            'chatID': request.json.get('chatID', ''),
             'index': request.json.get('index', ''),
             'alreadyGenerated': request.json.get('alreadyGenerated', False)
         }
@@ -294,11 +352,11 @@ def tts_request():
             return response, status_code
         
         output_path = os.path.join(USERDATA_DIR, request_data['username'], 'temp')        
-        output_path = os.path.join(output_path, f"{request_data['chatID']}_{request_data['index']}.wav")
+        output_path = os.path.join(output_path, f"{request_data['index']}.wav")
 
         # Check if the audio file already exists
         if request_data['alreadyGenerated'] and os.path.exists(output_path):
-            log_to_console(f"Audio file for message {request_data['index']} in chat {request_data['chatID']} already exists", tag="GENERATE-TTS", spacing=1)
+            log_to_console(f"Audio file for message {request_data['index']} already exists", tag="GENERATE-TTS", spacing=1)
             return send_file(output_path, mimetype='audio/wav')
 
         generate_tts_file(request_data['text'], output_path)
@@ -323,7 +381,6 @@ def sound_effect_request(): #TODO - change implementation to be more suitable fo
         request_data = {
             'text': request.json.get('text', ''),
             'username': request.json.get('username', ''),
-            'chatID': request.json.get('chatID', ''),
             'index': request.json.get('index', '')
         }
 
@@ -334,11 +391,11 @@ def sound_effect_request(): #TODO - change implementation to be more suitable fo
             return response, status_code
         
         output_path = os.path.join(USERDATA_DIR, request_data['username'], 'temp')
-        output_path = os.path.join(output_path, f"{request_data['chatID']}_{request_data['index']}_se.wav")
+        output_path = os.path.join(output_path, f"{request_data['index']}_se.wav")
 
         # Check if the audio file already exists
         if os.path.exists(output_path):
-            log_to_console(f"Audio file for message {request_data['index']} in chat {request_data['chatID']} already exists", tag="GENERATE-AUDIO", spacing=1)
+            log_to_console(f"Audio file for message {request_data['index']} already exists", tag="GENERATE-AUDIO", spacing=1)
             return send_file(output_path, mimetype='audio/wav')
 
         descriptions = request_data['text']
@@ -352,70 +409,6 @@ def sound_effect_request(): #TODO - change implementation to be more suitable fo
         return send_file(output_path, mimetype='audio/wav')
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
-@app.route('/chat-id', methods=['POST'])
-def get_chat_id():
-    current_user = request.json.get('username', None)
-
-    log_to_console(f"Received request for chat ID from {current_user}", tag="CHAT-ID", spacing=1)
-
-    if current_user is None:
-        log_to_console("No user provided", tag="CHAT-ID", spacing=1)
-        return jsonify({'error': 'No user provided'}), 400
-
-    users = os.listdir(USERDATA_DIR)
-
-    if current_user not in users:
-        log_to_console(f"User {current_user} not found", tag="CHAT-ID", spacing=1)
-        return jsonify({'error': 'User not found'}), 404
-    
-    # Get the chat history of the user
-    chat_history = os.listdir(os.path.join(USERDATA_DIR, current_user, 'chat history'))
-
-    if len(chat_history) == 0:
-        log_to_console(f"No chat history found for {current_user}, starting new chat", tag="CHAT-ID", spacing=1)
-        chat_id = 1
-        chat_dir = os.path.join(USERDATA_DIR, current_user, 'chat history', str(chat_id))
-        # Create chat files
-        os.makedirs(chat_dir)
-        os.makedirs(os.path.join(chat_dir, 'audio'))
-        os.makedirs(os.path.join(chat_dir, 'chat'))
-        # Create messages json
-        with open(os.path.join(chat_dir, 'chat', 'messages.json'), 'w') as f:
-            json.dump([], f)
-        os.makedirs(os.path.join(chat_dir, 'images'))
-    else:
-        # Check if most recent chat is empty
-        most_recent_chat = chat_history[-1]
-        chat_dir = os.path.join(USERDATA_DIR, current_user, 'chat history', most_recent_chat)
-
-        message_file = os.path.join(chat_dir, 'chat', 'messages.json') # Idk something was breaking here, tbh long term I think this is getting removed anyway
-        if not os.path.exists(message_file):
-            os.makedirs(os.path.join(chat_dir, 'chat'), exist_ok=True)
-            # Create file
-            with open(message_file, 'w') as f:
-                json.dump([], f)
-        # Load messages
-        with open(os.path.join(chat_dir, 'chat', 'messages.json'), 'r') as f:
-            messages = json.load(f)
-        if len(messages) == 0:
-            # Use the most recent chat
-            chat_id = int(most_recent_chat)
-        else:
-            # Create a new chat
-            chat_id = len(chat_history) + 1
-
-            chat_dir = os.path.join(USERDATA_DIR, current_user, 'chat history', str(chat_id))
-
-            # Create chat files
-            os.makedirs(chat_dir)
-            os.makedirs(os.path.join(chat_dir, 'audio'))
-            os.makedirs(os.path.join(chat_dir, 'chat'))
-            os.makedirs(os.path.join(chat_dir, 'images'))
-
-    log_to_console(f"Chat ID for {current_user}: {chat_id}", tag="CHAT-ID", spacing=1)
-        
-    return jsonify({'chatID': chat_id}), 200
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -474,6 +467,7 @@ def login_status():
         log_to_console(f"Checking if user {username} exists", tag="LOGIN-STATUS", spacing=1)
         if User.query.filter_by(username=username).first():
             log_to_console(f"User {username} found", tag="LOGIN-STATUS", spacing=1)
+            loginSuccess(username)
             return jsonify({'logged_in': True, 'user': username})
         else:
             log_to_console(f"User {username} not found", tag="LOGIN-STATUS", spacing=1)
@@ -531,11 +525,50 @@ def forbidden_error(error):
 
 #-----------------------------------------------------Main Function-----------------------------------------------------#
 
+def fix_userData():
+    """
+    Fix the userData directory by creating the necessary directories for each user
+
+    Created this for convenience since the old setup was different
+    """
+    users = os.listdir(USERDATA_DIR)
+    for user in users:
+        if not os.path.isdir(os.path.join(USERDATA_DIR, user)):
+            log_to_console(f"Skipping non-directory file: {user}", tag="FIX-USERDATA", spacing=1)
+            continue
+
+        user_dir = os.path.join(USERDATA_DIR, user)
+        if not os.path.exists(os.path.join(user_dir, 'temp')):
+            os.makedirs(os.path.join(user_dir, 'temp'))
+            log_to_console(f"Created temp directory for user: {user}", tag="FIX-USERDATA", spacing=1)
+        if os.path.exists(os.path.join(user_dir, 'chat history')):
+            delete_folder(os.path.join(user_dir, 'chat history'))
+            log_to_console(f"Removed chat history directory for user: {user}", tag="FIX-USERDATA", spacing=1)
+        if not os.path.exists(os.path.join(user_dir, 'stories')):
+            os.makedirs(os.path.join(user_dir, 'stories'))
+            log_to_console(f"Created stories directory for user: {user}", tag="FIX-USERDATA", spacing=1)
+
+def delete_folder(path: str) -> None:
+    """
+    Recursively delete a folder and its contents
+    """
+    log_to_console(f"Recursively deleting {path}", tag="DELETE-FOLDER", spacing=0)
+
+    if os.path.isdir(path):
+        for item in os.listdir(path):
+            item_path = os.path.join(path, item)
+            delete_folder(item_path)
+        os.rmdir(path)
+    else:
+        os.remove(path)
+
 if __name__ == '__main__':
     if not os.path.exists(USERDATA_DIR):
         os.makedirs(USERDATA_DIR)
 
     init_db()
+
+    fix_userData()  # TODO - remove once all users have been fixed
 
     if CLEAR_TEMP_ON_START:
         clear_all_temp_files()

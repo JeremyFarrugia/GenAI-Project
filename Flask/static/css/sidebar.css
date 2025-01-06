@@ -1,0 +1,72 @@
+#page-content {
+    display: flex;
+    height: 100%;
+    min-height: 100vh;
+}
+
+.sidebar {
+    position: fixed; /* Stay in place when scrolling :) */
+    top: 0;
+    left: 0;
+    width: 250px;
+    height: 100vh;
+    background-color: var(--dark-black);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-header {
+    font-size: 1.5em;
+    margin-bottom: 20px;
+    text-align: center;
+    border-bottom: 1px solid #34495e;
+    padding-bottom: 10px;
+}
+
+.sidebar-menu {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    flex-grow: 1;
+}
+
+.sidebar-menu li {
+    margin: 10px 0;
+}
+
+.sidebar-menu a {
+    text-decoration: none;
+    color: white;
+    padding: 10px;
+    display: block;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+.sidebar-menu a:hover {
+    background-color: #34495e;
+    cursor: pointer;
+}
+
+#page-content-inner {
+    margin-left: 270px; /* Create space for sidebar (250 width + 10 padding each side) */
+    padding: 0px;
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.sidebar button {
+    background: none;
+    border: none;
+}
+
+.toggle-sidebar img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    cursor: pointer;
+    filter: invert(1); /* just to make it visible, I want to find a better solution later */
+}

@@ -7,18 +7,22 @@
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="{{ url_for('static', filename='assets/icon.png') }}">
-    <title>slop center</title>
+    <title>slop center - Your Stories</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}">
-
+    
     <script src="{{ url_for('static', filename='scripts/script.js') }}"></script>
 </head>
 
 <body>
+    
+    
+    <!-- Account modals -->
+    {% include 'account_modals.html' %}
     
     <!-- Feedback modal -->
     {% include 'feedback_modal.html' %}
@@ -44,11 +48,17 @@
             <!-- Title -->
             {% include 'header.html' %}
 
-            <div id="output"></div>
-            <div id="input-container">
-                <input type="text" id="prompt-input" placeholder="Enter Prompt" />
-                <button id="execute-btn" onclick="executePrompt()">Send</button>
-            </div>
+            {% if not stories %}
+                <p> No stories to display :c </p>
+                <p> Why not make one? </p>
+            {% endif %}
+
+            {% for story in stories %}
+                <div class="story-preview" onclick="redirectToStory({{ story.url }})">
+                    <img src="data:image/png;base64,{{ story.thumbnail }}" alt="{{ story.title }}" class="story-thumbnail">
+                    <h2>{{ story.title }}</h2>
+                </div>
+            {% endfor %}
 
             <footer>
                 <p> Project by Jeremy, Luke & Rhea </p>

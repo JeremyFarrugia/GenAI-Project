@@ -2,9 +2,7 @@ var outputDiv;
 var promptInput;
 var promptHistory = [];
 var promptHistoryIndex = 0;
-var user = 'Guest'; // The user's name (temporary)
-var chatID = 1; // The chat ID
-var canPrompt = false; // Whether the user can prompt the model or not
+var user = 'User'; // The user's name (temporary)
 var loggedIn = false; // Whether the user is logged in or not
 var generatingAudio = false; //
 
@@ -21,6 +19,8 @@ var accountModal;
 
 var generated = []; // Used to avoid generating the same audio multiple times
 
+// TODO - Organise into sub-scripts
+
 document.addEventListener("DOMContentLoaded", async function (event) {
     outputDiv = document.getElementById('output');
     promptInput = document.getElementById('prompt-input');
@@ -29,16 +29,36 @@ document.addEventListener("DOMContentLoaded", async function (event) {
     registerModal = document.getElementById('registerModal');
     accountModal = document.getElementById('accountModal');
 
-    promptInput.addEventListener
-    // Execute the prompt when the user presses Enter
-    promptInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') executePrompt();
-    });
+    if (promptInput === null) {
+        console.log('Could not find the prompt input element. but don\'t worry You\'re probably on a different page.');
+    }
+    else {
+        // Execute the prompt when the user presses Enter
+        promptInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') executePrompt();
+        });
+
+        // Could remove - button up/down to retrieve previous prompts
+        promptInput.addEventListener('keydown', (e) => {
+            handlePromptKeydown(e);
+        });
+
+        // Audio button
+        document.getElementById('output').addEventListener('click', function(event) {
+            // Check if the clicked element is the audio button
+            if (event.target && (event.target.matches('button.audio-button') || event.target.matches('img.audio-icon'))) {
+                // Access the parent div of the clicked button
+                const parentDiv = event.target.closest('.model-response-container');
+                playAudio(parentDiv);
+            }
+        });
+
+        // Focus on the input field
+        promptInput.focus();
+    }
 
     // Check if the user is logged in
     await checkSession();
-
-    await getChatID();
 
     // Handle login form submission
     document.getElementById('loginForm').onsubmit = async (event) => {
@@ -49,24 +69,6 @@ document.addEventListener("DOMContentLoaded", async function (event) {
     document.getElementById('registerForm').onsubmit = async (event) => {
         createUser(event);
     }
-
-    // Could remove - button up/down to retrieve previous prompts
-    promptInput.addEventListener('keydown', (e) => {
-        handlePromptKeydown(e);
-    });
-
-    // Audio button
-    document.getElementById('output').addEventListener('click', function(event) {
-        // Check if the clicked element is the audio button
-        if (event.target && (event.target.matches('button.audio-button') || event.target.matches('img.audio-icon'))) {
-            // Access the parent div of the clicked button
-            const parentDiv = event.target.closest('.model-response-container');
-            playAudio(parentDiv);
-        }
-    });
-
-    // Focus on the input field
-    promptInput.focus();
 });
 
 function openLogin() {
@@ -153,7 +155,6 @@ async function loginSuccess(username, setCookie = false) {
 
 
     swapLoginButton();
-    getChatID();
 }
 
 async function checkSession() {
@@ -248,18 +249,15 @@ async function logout() {
 
             console.log(result.message);
             loggedIn = false;
-            canPrompt = false;
 
             swapLoginButton();
 
             // Clear the user's account details
-            document.getElementById('accountUsername').innerText = 'Guest';
+            document.getElementById('accountUsername').innerText = 'User';
             
             // Clear the account details button
-            document.getElementById('user-button').innerText = 'Guest';
+            document.getElementById('user-button').innerText = 'User';
 
-            // Clear the chat ID
-            chatID = 1;
             outputDiv.innerHTML = ''; // Clear the chat history
         }
     }
@@ -336,46 +334,9 @@ function handlePromptKeydown(e) {
     }
 }
 
-async function getChatID() {
-    if (!loggedIn) {
-        outputDiv.innerHTML += `<p style="color: red;" class = model-error>You must be logged in to chat.</p>`;
-        return;
-    }
-    try {
-        const response = await fetch('/chat-id', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                username: user
-            })
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            chatID = result.chatID;
-            console.log('Chat ID:', chatID);
-            canPrompt = true;
-        } else {
-            console.error('Error getting chat ID (response failure):', result.error);
-            outputDiv.innerHTML += `<p style="color: red;" class = model-error>Error: ${result.error}</p>`;
-        }
-    } catch (error) {
-        console.error('Error getting chat ID (system error):', error);
-        outputDiv.innerHTML += `<p style="color: red;" class = model-error>Error: ${error}</p>`;
-    }
-}
-
 async function executePrompt() {
     if (!loggedIn) {
         alert('Please log in to prompt the model.');
-        return;
-    }
-
-    if (!canPrompt) {
-        outputDiv.innerHTML += `<p style="color: red;" class = model-error>Error: You cannot prompt the model yet. Please wait a few seconds and try again.</p>`;
         return;
     }
 
@@ -490,7 +451,6 @@ async function playAudio(parentDiv) {
             body: JSON.stringify({
                 text: modelResponse.innerText,
                 username: user,
-                chatID: chatID,
                 index: index,
                 alreadyGenerated: shouldExist,
             })
