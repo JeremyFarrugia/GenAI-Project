@@ -6,6 +6,9 @@ import numpy as np
 import soundfile as sf
 from typing import Union, Literal
 
+from groq import Groq
+from dotenv import load_dotenv
+
 from transformers import VitsModel, AutoTokenizer
 import torch
 import scipy.io.wavfile as wav
@@ -48,6 +51,7 @@ STATIC_DIR = os.path.join(SCRIPT_DIR, 'static')
 USERDATA_DIR = os.path.join(STATIC_DIR, 'userdata')
 AUDIO_DIR = os.path.join(STATIC_DIR, 'audio')
 
+load_dotenv()
 CLEAR_TEMP_ON_START = True # Flag to clear all temporary files on server start
 
 # NOTE: Debug mode causes the audio generation models to crash the server, but if set to false you will have to manually restart the server to see changes
@@ -66,6 +70,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(USERDATA_DIR, 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False # Disable modification tracking
 db = SQLAlchemy(app) # Create a database object
 bcrypt = Bcrypt(app) # Create a bcrypt object for password hashing
+
+client = Groq(api_key=os.getenv("GROQ_KEY")) # Create a GROQ client for chat completion
 
 tts_model = VitsModel.from_pretrained("facebook/mms-tts-eng") # https://huggingface.co/facebook/mms-tts-eng  Consider wavnet? I think it's better but it requires use of google cloud services
 tokeniser = AutoTokenizer.from_pretrained("facebook/mms-tts-eng") 
@@ -314,8 +320,27 @@ def prompt():
     log_to_console(f"Received prompt: {user_prompt}", tag="PROMPT", spacing=1)
 
     try:
+        completion = client.chat.completions.create(
+        model="llama-3.3-70b-specdec",
+        messages=[
+            {
+            "role": "system",
+            "content": "You are a storytelling assistant, based on the given prompt generate a story with a title, introduction, body and conclusion and nothing else. Make sure the story is as detailed and interesting as possible.\n"
+            },
+            {
+                "role": "user",
+                "content": user_prompt
+            },
+        ],
+        temperature=1,
+        max_tokens=2048,
+        top_p=1
+        )
+
+        reply = completion.choices[0].message.content
+        
+        log_to_console(f"Reply: {reply}", tag="PROMPT", spacing=1)
         # Run prompt
-        reply = "I repeat what you say: " + user_prompt
         if user_prompt == "error":
             raise Exception("Why would you want to see an error?")
         
