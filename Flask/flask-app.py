@@ -6,6 +6,9 @@ import torchaudio
 import numpy as np
 import soundfile as sf
 from typing import Union
+import torch
+from groq import Groq
+from dotenv import load_dotenv
 
 import sqlite3
 
@@ -42,6 +45,8 @@ STATIC_DIR = os.path.join(SCRIPT_DIR, 'static')
 USERDATA_DIR = os.path.join(STATIC_DIR, 'userdata')
 AUDIO_DIR = os.path.join(STATIC_DIR, 'audio')
 
+load_dotenv()
+
 #-------------------------------------------------------Server Setup-------------------------------------------------------#
 
 app = Flask(__name__)
@@ -55,6 +60,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(USERDATA_DIR, 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False # Disable modification tracking
 db = SQLAlchemy(app) # Create a database object
 bcrypt = Bcrypt(app) # Create a bcrypt object for password hashing
+
+client = Groq(api_key=os.getenv("GROQ_KEY")) # Create a GROQ client for chat completion
+
 
 # User Model
 class User(db.Model):
@@ -129,8 +137,27 @@ def prompt():
     log_to_console(f"Received prompt: {user_prompt}", tag="PROMPT", spacing=1)
 
     try:
+        completion = client.chat.completions.create(
+        model="llama-3.3-70b-specdec",
+        messages=[
+            {
+            "role": "system",
+            "content": "You are a storytelling assistant, based on the given prompt generate a story with a title, introduction, body and conclusion and nothing else. Make sure the story is as detailed and interesting as possible.\n"
+            },
+            {
+                "role": "user",
+                "content": user_prompt
+            },
+        ],
+        temperature=1,
+        max_tokens=2048,
+        top_p=1
+        )
+
+        reply = completion.choices[0].message.content
+        
+        log_to_console(f"Reply: {reply}", tag="PROMPT", spacing=1)
         # Run prompt
-        reply = "I repeat what you say: " + user_prompt
         if user_prompt == "error":
             raise Exception("Why would you want to see an error?")
         
@@ -314,4 +341,4 @@ if __name__ == '__main__':
         os.makedirs(USERDATA_DIR)
 
     init_db()
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)

@@ -325,7 +325,7 @@ async function executePrompt() {
             if (result.reply) {
                 outputDiv.innerHTML += `
                     <div class="model-response-container text-container">
-                        <p class=model-response>david> ${result.reply}</p>
+                        <p class=model-response>The Rizzler > ${result.reply}</p>
                         <button class="audio-button">
                             <img src="${audioIconUrl}" alt="Play audio" class="audio-icon">
                         </button>
