@@ -7,7 +7,7 @@
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="{{ url_for('static', filename='assets/icon.png') }}">
-    <title>slop center - Your Stories</title>
+    <title>slop center - {{ pageTitle }}</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,36 +19,34 @@
 </head>
 
 <body>
-    
-    
-    <!-- Account modals -->
-    {% include 'account_modals.html' %}
-    
-    <!-- Feedback modal -->
-    {% include 'feedback_modal.html' %}
-
-    <!-- A bit of a hack but it makes something work nicely -->
-    <script>
-        const audioIconUrl = "{{ url_for('static', filename='assets/audio.png') }}";
-    </script>
-
-    
-    <!-- Modal Error box -->
-    <div id="modalPopup" class="modal"> <!-- I think this may come in handy, it is also from another project -->
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <p id="modal-message"></p>
-        </div>
-    </div>
-
     <div id="page-content">
         {% include 'sidebar.html' %}
 
         <div id="page-content-inner">
-            <!-- Title -->
             {% include 'header.html' %}
 
-            hehe story time (but this time they're public)
+            <h1>{{ pageTitle }}</h1>
+
+            {% if not stories %}
+                {% if pageTitle == "Public Stories" %}
+                    <p> No public stories to display :c </p>
+                {% else %}
+                    <p> No stories to display :c </p>
+                    <p> Why not make one? </p>
+                {% endif %}
+            {% endif %}
+
+            <div class = "stories-container" id = "stories-container">
+                {% for story in stories %}
+                    <div class="story-preview" onclick="redirectToStory({{ story.url }})">
+                        <img src="data:image/png;base64,{{ story.thumbnail }}" alt="{{ story.title }}" class="story-thumbnail">
+                        <h2>{{ story.title }}</h2>
+                        {% if story.author %}
+                            <p>by {{ story.author }}</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
 
             <footer>
                 <p> Project by Jeremy, Luke & Rhea </p>

@@ -7,22 +7,19 @@
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="{{ url_for('static', filename='assets/icon.png') }}">
-    <title>slop center - Your Stories</title>
+    <title>slop center - {{ story.title }}</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/story.css') }}">
     
     <script src="{{ url_for('static', filename='scripts/script.js') }}"></script>
 </head>
 
 <body>
-    
-    
-    <!-- Account modals -->
-    {% include 'account_modals.html' %}
     
     <!-- Feedback modal -->
     {% include 'feedback_modal.html' %}
@@ -48,17 +45,28 @@
             <!-- Title -->
             {% include 'header.html' %}
 
-            {% if not stories %}
-                <p> No stories to display :c </p>
-                <p> Why not make one? </p>
-            {% endif %}
-
-            {% for story in stories %}
-                <div class="story-preview" onclick="redirectToStory({{ story.url }})">
-                    <img src="data:image/png;base64,{{ story.thumbnail }}" alt="{{ story.title }}" class="story-thumbnail">
-                    <h2>{{ story.title }}</h2>
+            <div class="story-header" id = "story-header">
+                <div class="story-title" id = "story-title">
+                    <h1>{{ story.title }}</h1>
+                    <h2>by {{ story.author }}</h2>
                 </div>
-            {% endfor %}
+                <button id="play-button" onclick="playAudio('{{ story.audio }}')">
+                    Listen to this story
+                    <img src = "{{ url_for('static', filename='assets/audio.png') }}" alt = "Audio Icon">
+                </button>
+            </div>
+
+            <div class="story-content" id = "story-content">
+                {% for contentBlock in story.content %}
+                    {% if contentBlock.type == "text" %}
+                        <p class="story-text">{{ contentBlock.text }}</p>
+                    {% elif contentBlock.type == "image" %}
+                        <img src="data:image/png;base64,{{ contentBlock.image }}" alt="{{ contentBlock.alt }}" class="story-image">
+                    {% elif contentBlock.type == "sound" %}
+                        <p class="story-sound">{{ contentBlock.sound }}</p>
+                    {% endif %}
+                {% endfor %}
+            </div>
 
             <footer>
                 <p> Project by Jeremy, Luke & Rhea </p>

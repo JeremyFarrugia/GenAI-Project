@@ -462,7 +462,7 @@ socket.on('story-complete', (data) => {
 
         if (count === 0) {
             clearInterval(interval);
-            window.location.href = `/stories-${user}`;
+            window.location.href = data.url;
         }
     }, 1000);
     

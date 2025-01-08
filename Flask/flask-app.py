@@ -97,6 +97,77 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
+class Story(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(80), nullable=False)
+    data_path = db.Column(db.String(200), unique=True, nullable=False)
+    isPublic = db.Column(db.Boolean, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+def add_story_to_db(title: str, data_path: str, isPublic: bool, user_id: int) -> int:
+    """
+    Add a story to the database
+    
+    Returns:
+    - The ID of the newly added story
+    """
+    new_story = Story(title=title, data_path=data_path, isPublic=isPublic, user_id=user_id)
+    db.session.add(new_story)
+    db.session.commit()
+    return Story.query.filter_by(data_path=data_path).first().id
+
+def change_story_privacy(story_id: int, isPublic: bool) -> None:
+    """
+    Change the privacy of a story in the database
+    """
+    story = Story.query.filter_by(id=story_id).first()
+    story.isPublic = isPublic
+    db.session.commit()
+
+def get_story_data(story_id: int) -> dict:
+    """
+    Get the data for a story from the database
+    Data includes:
+    - Title
+    - Data path
+    - isPublic flag
+    - Username of the author
+    """
+    story = Story.query.filter_by(id=story_id).first()
+    username = User.query.filter_by(id=story.user_id).first().username
+    return {
+        'title': story.title,
+        'data_path': story.data_path,
+        'isPublic': story.isPublic,
+        'username': username
+    }
+
+def get_story_id(title: str, user_id: int) -> Union[int, None]:
+    """
+    Get the ID of a story from the database
+    """
+    story = Story.query.filter_by(title=title, user_id=user_id).first()
+    if story:
+        return story.id
+    return None
+
+def get_all_stories() -> list[dict]:
+    """
+    Get all stories from the database
+    """
+    stories = Story.query.all()
+    story_data = []
+    for story in stories:
+        username = User.query.filter_by(id=story.user_id).first().username
+        story_data.append({
+            'title': story.title,
+            'data_path': story.data_path,
+            'isPublic': story.isPublic,
+            'username': username
+        })
+    return story_data
+
+
 def log_to_console(message: str, tag: Union[str | None] = None, spacing: int = 0) -> None:
     """Log a message to the console"""
     if tag is None:
@@ -301,7 +372,14 @@ def user_stories(username):
         thumbnail = os.path.join(userData, 'stories', story, 'thumbnail.jpg')
         thumbnail = get_thumbnail(thumbnail)
         title = story
-        url = url_for('story', username=username, story=story)
+
+        userID = User.query.filter_by(username=username).first().id
+        storyID = get_story_id(title, userID)
+        if storyID is None:
+            log_to_console(f"Story ID not found for story: {story} by user: {username}", tag="USER-STORIES", spacing=1)
+            continue
+
+        url = '/story-' + str(storyID)
 
         story_data.append({
             'thumbnail': thumbnail,
@@ -309,11 +387,62 @@ def user_stories(username):
             'url': url
         })
 
-    return render_template('user_stories.html', username=username, stories=story_data)
+    """
+    TODO - consider setting this up in a way where if the user accessing this page is the same as the user in the URL
+    the page will be the same as it currently is, but if the user is different it will only show that user's public stories
+    with the page title being the user's name and the page giving a different message if there are no public stories
+    Also if you click on a user's name it will take you to this page
+    """
+    return render_template('story_catalogue.html', username=username, stories=story_data, pageTitle="Your Stories")
 
 @app.route('/public_stories')
 def public_stories():
-    return render_template('public_stories.html')
+
+    stories = get_all_stories()
+    story_data = []
+    for story in stories:
+        if not story['isPublic']:
+            continue
+
+        thumbnail = os.path.join(story['data_path'], 'thumbnail.jpg') # TODO - I decided to use enumerations for the story path instead of the title
+        #thumbnail = os.path.join(USERDATA_DIR, story['username'], 'stories', story['title'], 'thumbnail.jpg') 
+        thumbnail = get_thumbnail(thumbnail)
+
+        story_data.append({
+            'thumbnail': thumbnail,
+            'title': story['title'],
+            'url': '/story-' + story['username'],
+            'creator': story['username']
+        })
+    
+    return render_template('story_catalogue.html', stories=story_data, pageTitle="Public Stories")
+
+
+@app.route('/story-<storyID>')
+def story(storyID):
+    try:
+        storyID = int(storyID)
+        story_data = get_story_data(storyID)
+    except ValueError:
+        return render_template('content_not_found.html', error="Invalid story ID"), 404
+    
+    # If story is not public check if the user is logged in
+    if not story_data['isPublic']:
+        accessingUser = session.get('username', None)
+        if not accessingUser:
+            return render_template('forbidden_access.html', error="You do not have permission to access this page"), 403
+        if accessingUser != story_data['username']:
+            return render_template('forbidden_access.html', error="You do not have permission to access this page, this story is private."), 403
+        
+    # Try access story data
+    try:
+        os.path.exists(story_data['data_path'])
+        # TODO - Load story data
+
+    except FileNotFoundError:
+        return render_template('content_not_found.html', error="Story data not found"), 404
+        
+    return render_template('story.html', story=story_data)
 
 
 #--------------------------------------API--------------------------------------#
@@ -554,10 +683,19 @@ def generate_story(data):
     username = data.get('username', None)
     story_content = data.get('content', None)
 
+    data_path = os.path.join(USERDATA_DIR, username, 'stories')
+    data_path = os.path.join(data_path, f"{len(os.listdir(data_path)) + 1}") # Directories are enumerated
+    # Create the story directory
+    os.makedirs(data_path)
+
+    title = 'Story Title' # TODO - Implement title generation
+
     log_to_console(f"Received story content: {story_content}", tag="GENERATE-STORY", spacing=1)
     time.sleep(3) # Simulate story generation
 
-    emit('story-complete', {'message': 'Story generated successfully!'})
+    # Currently all stories are private and need to be manually set to public TODO - remember to implement this 
+    story_num = add_story_to_db(title=title, data_path=data_path, isPublic=False, user_id=User.query.filter_by(username=username).first().id)
+    emit('story-complete', {'message': 'Story generated successfully!', 'title': title, 'url': f'/story-{story_num}'})
 
 #-----------------------------------------------------Error Handling-----------------------------------------------------#
 
@@ -596,6 +734,32 @@ def fix_userData():
             os.makedirs(os.path.join(user_dir, 'stories'))
             log_to_console(f"Created stories directory for user: {user}", tag="FIX-USERDATA", spacing=1)
 
+def delete_redundant_users():
+    """
+    Delete files and folders associated with users that are no longer in the database
+    """
+
+    users = os.listdir(USERDATA_DIR)
+    for user in users:
+        if not os.path.isdir(os.path.join(USERDATA_DIR, user)):
+            log_to_console(f"Skipping non-directory file: {user}", tag="DELETE-REDUNDANT-FILES", spacing=1)
+            continue
+
+        user_db = User.query.filter_by(username=user).first()
+        if not user_db:
+            delete_folder(os.path.join(USERDATA_DIR, user))
+            log_to_console(f"Deleted redundant files for user: {user}", tag="DELETE-REDUNDANT-FILES", spacing=1)
+
+def clear_stories():
+    """
+    Clear all story data from the database
+    """
+    stories = Story.query.all()
+    for story in stories:
+        db.session.delete(story)
+    db.session.commit()
+    
+
 def delete_folder(path: str) -> None:
     """
     Recursively delete a folder and its contents
@@ -623,5 +787,6 @@ if __name__ == '__main__':
 
     with app.app_context():
         debug_users()
+        delete_redundant_users()
 
     app.run(debug=DEBUG)
