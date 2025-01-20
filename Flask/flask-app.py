@@ -754,10 +754,24 @@ def clear_stories():
     """
     Clear all story data from the database
     """
+    log_to_console("Clearing all story data", tag="CLEAR-STORIES", spacing=1)
+
     stories = Story.query.all()
     for story in stories:
         db.session.delete(story)
     db.session.commit()
+
+    # Clear all story files for all users
+    users = os.listdir(USERDATA_DIR)
+    for user in users:
+        if not os.path.isdir(os.path.join(USERDATA_DIR, user)):
+            log_to_console(f"Skipping non-directory file: {user}", tag="CLEAR-STORIES", spacing=1)
+            continue
+
+        user_dir = os.path.join(USERDATA_DIR, user, 'stories')
+        for story in os.listdir(user_dir):
+            delete_folder(os.path.join(user_dir, story))
+            log_to_console(f"Deleted story for user: {user}", tag="CLEAR-STORIES", spacing=1)
     
 
 def delete_folder(path: str) -> None:
@@ -774,6 +788,9 @@ def delete_folder(path: str) -> None:
     else:
         os.remove(path)
 
+
+DELETE_STORIES = True
+
 if __name__ == '__main__':
     if not os.path.exists(USERDATA_DIR):
         os.makedirs(USERDATA_DIR)
@@ -788,5 +805,8 @@ if __name__ == '__main__':
     with app.app_context():
         debug_users()
         delete_redundant_users()
+        if DELETE_STORIES:
+            clear_stories()
+
 
     app.run(debug=DEBUG)
