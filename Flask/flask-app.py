@@ -85,10 +85,10 @@ tokeniser = AutoTokenizer.from_pretrained("facebook/mms-tts-eng")
 audio_model = None 
 music_model = None
 if not DEBUG: # Safety - See above (DEBUG flag)
-    audio_model = AudioGen.get_pretrained('facebook/audiogen-medium') # https://github.com/facebookresearch/audiocraft/blob/main/docs/AUDIOGEN.md
+    audio_model = AudioGen.get_pretrained('facebook/audiogen-medium') # https://github.com/facebookresearch/audiocraft/blob/main/docs/AUDIOGEN.md  https://huggingface.co/facebook/audiogen-medium
     audio_model.set_generation_params(duration=5)  # Length of audio in seconds (Will be overwritten by the duration parameter in the generate_sound_file function)
     #music_model = MusicGen.get_pretrained('facebook/musicgen-melody') # https://huggingface.co/facebook/musicgen-melody
-    music_model = MusicGen.get_pretrained('facebook/musicgen-medium') # Switched away from melody since it had features that were not needed (large caused memory errors)
+    music_model = MusicGen.get_pretrained('facebook/musicgen-medium') # Switched away from melody since it had features that were not needed (large caused memory errors) https://huggingface.co/facebook/musicgen-medium
     music_model.set_generation_params(duration=20)
 
 # User Model
