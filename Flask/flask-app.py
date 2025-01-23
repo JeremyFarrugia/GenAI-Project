@@ -367,25 +367,32 @@ def user_stories(username):
     stories = os.listdir(os.path.join(userData, 'stories'))
 
     story_data = []
-    for story in stories:
-        log_to_console(f"Checking story: {story}", tag="USER-STORIES", spacing=1)
-        thumbnail = os.path.join(userData, 'stories', story, 'thumbnail.jpg')
-        thumbnail = get_thumbnail(thumbnail)
-        title = story
+    try:
+        for story in stories:
+            log_to_console(f"Checking story: {story}", tag="USER-STORIES", spacing=1)
+            thumbnail = os.path.join(userData, 'stories', story, 'thumbnail.jpg')
+            try:
+                thumbnail = get_thumbnail(thumbnail)
+            except FileNotFoundError:
+                log_to_console(f"Thumbnail not found for story: {story} by user: {username}, skipping", tag="USER-STORIES", spacing=1)
+                continue
+            title = story
 
-        userID = User.query.filter_by(username=username).first().id
-        storyID = get_story_id(title, userID)
-        if storyID is None:
-            log_to_console(f"Story ID not found for story: {story} by user: {username}", tag="USER-STORIES", spacing=1)
-            continue
+            userID = User.query.filter_by(username=username).first().id
+            storyID = get_story_id(title, userID)
+            if storyID is None:
+                log_to_console(f"Story ID not found for story: {story} by user: {username}", tag="USER-STORIES", spacing=1)
+                continue
 
-        url = '/story-' + str(storyID)
+            url = '/story-' + str(storyID)
 
-        story_data.append({
-            'thumbnail': thumbnail,
-            'title': title,
-            'url': url
-        })
+            story_data.append({
+                'thumbnail': thumbnail,
+                'title': title,
+                'url': url
+            })
+    except Exception as e:
+        return render_template('content_not_found.html', error=str(e)), 404
 
     """
     TODO - consider setting this up in a way where if the user accessing this page is the same as the user in the URL
@@ -437,6 +444,10 @@ def story(storyID):
     # Try access story data
     try:
         os.path.exists(story_data['data_path'])
+        # Remove the first part of data path
+        story_data['safe_path'] = story_data['data_path'].replace(USERDATA_DIR, '')[1:] # Remove the first character which is a slash
+        # Change the data path so that it could be embedded in the page without creating errors due to \
+        story_data['safe_path'] = story_data['safe_path'].replace('\\', '/')
         # TODO - Load story data
 
     except FileNotFoundError:

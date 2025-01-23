@@ -51,7 +51,7 @@
                     <h1>{{ story.title }}</h1>
                     <h2>by {{ story.author }}</h2>
                 </div>
-                <button id="play-button" onclick="playAudio('{{ story.audio }}')">
+                <button id="play-button" onclick="playAudio('{{ story.safe_path }}')">
                     Listen to this story
                     <img src = "{{ url_for('static', filename='assets/audio.png') }}" alt = "Audio Icon">
                 </button>

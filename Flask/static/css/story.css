@@ -1,0 +1,29 @@
+#play-button img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    cursor: pointer;
+    margin-left: 15px;
+}
+
+#story-header button {
+    display: flex;
+    padding: 10px;
+    background: none;
+    border: none;
+    width: fit-content;
+    height: fit-content;
+    color: var(--white);
+    font-size: 1.5em;
+    cursor: pointer;
+    align-items: center;
+    flex-direction: row;
+}
+
+#story-header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    width: 100%;
+}
