@@ -63,8 +63,6 @@
                         <p class="story-text">{{ contentBlock.text }}</p>
                     {% elif contentBlock.type == "image" %}
                         <img src="data:image/png;base64,{{ contentBlock.image }}" alt="{{ contentBlock.alt }}" class="story-image">
-                    {% elif contentBlock.type == "sound" %}
-                        <p class="story-sound">{{ contentBlock.sound }}</p>
                     {% endif %}
                 {% endfor %}
             </div>

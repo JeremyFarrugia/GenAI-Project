@@ -24,6 +24,7 @@ from io import BytesIO
 import base64
 
 import sqlite3
+import time
 
 """
 TODO: 
@@ -53,14 +54,13 @@ STATIC_DIR = os.path.join(SCRIPT_DIR, 'static')
 USERDATA_DIR = os.path.join(STATIC_DIR, 'userdata')
 AUDIO_DIR = os.path.join(STATIC_DIR, 'audio')
 
-load_dotenv()
-CLEAR_TEMP_ON_START = True # Flag to clear all temporary files on server start
-
 # NOTE: Debug mode causes the audio generation models to crash the server, but if set to false you will have to manually restart the server to see changes
 DEBUG = False
 # I have also been informed that the reloader causes issues with groq
 
 #-------------------------------------------------------Server Setup-------------------------------------------------------#
+
+load_dotenv() # Load environment variables (API keys, etc.)
 
 app = Flask(__name__)
 
@@ -256,6 +256,15 @@ def debug_users() -> None:
         # Note: password is currently printed as encrypted
         log_to_console(f"User: {user.username}, Password: {user.password}", tag="DEBUG-USERS", spacing=0)
 
+def debug_stories() -> None:
+    """
+    Debug function to print all story details from the database
+    """
+    stories = Story.query.all()
+    log_to_console("Printing all stories in the database", tag="DEBUG-STORIES", spacing=1)
+    for story in stories:
+        log_to_console(f"Story: {story.title}, Path: {story.data_path}, Public: {story.isPublic}, User ID: {story.user_id}", tag="DEBUG-STORIES", spacing=0)
+
 def generate_tts_file(text: str, output_path: str) -> None:
     """
     Generate a TTS audio file from the given text and save it to the output path
@@ -284,12 +293,12 @@ def generate_sound_file(model: Literal['audio', 'music'], description: str, outp
     if model == 'audio':
         log_to_console(f"Generating audio file for description: {description}", tag="GENERATE-AUDIO-FILE", spacing=1)
         audio_model.set_generation_params(duration=duration)
-        wav = audio_model.generate([description])
+        wav = audio_model.generate([description])[0]
         audio_write(output_path, wav.cpu(), audio_model.sample_rate, strategy="loudness", loudness_compressor=True)
     elif model == 'music':
         log_to_console(f"Generating music file for description: {description}", tag="GENERATE-MUSIC-FILE", spacing=1)
         music_model.set_generation_params(duration=duration)
-        wav = music_model.generate([description])
+        wav = music_model.generate([description])[0] # The 0 indexing killed me, I spent an hour trying to figure out why I was getting this error: ValueError: Input wav should be at most 2 dimension. It was cause this mf was returning a list
         audio_write(output_path, wav.cpu(), music_model.sample_rate, strategy="loudness")
     else:
         raise ValueError("Invalid model type")
@@ -334,10 +343,12 @@ def get_thumbnail(thumbnail_path, debug: bool = False) -> Union[str, None]:
     if os.path.exists(thumbnail_path):
         with open(thumbnail_path, 'rb') as thumbnail_file:
             thumbnail = base64.b64encode(thumbnail_file.read()).decode('utf-8')
-        return thumbnail
+            return thumbnail
+            
     else:
         log_to_console(f"Thumbnail not found at path: {thumbnail_path}", tag="THUMBNAIL", spacing=1)
-        raise FileNotFoundError(f"Thumbnail not found at path: {thumbnail_path}")
+        thumbnail_path = os.path.join(STATIC_DIR, 'assets', 'default_thumbnail.jpg')
+        return base64.b64encode(open(thumbnail_path, 'rb').read()).decode('utf-8')
 
 #-----------------------------------------------------Routes-----------------------------------------------------#
 
@@ -371,17 +382,15 @@ def user_stories(username):
         for story in stories:
             log_to_console(f"Checking story: {story}", tag="USER-STORIES", spacing=1)
             thumbnail = os.path.join(userData, 'stories', story, 'thumbnail.jpg')
-            try:
-                thumbnail = get_thumbnail(thumbnail)
-            except FileNotFoundError:
-                log_to_console(f"Thumbnail not found for story: {story} by user: {username}, skipping", tag="USER-STORIES", spacing=1)
-                continue
-            title = story
+            thumbnail = get_thumbnail(thumbnail)
+            # Get story title from structure file
+            with open(os.path.join(userData, 'stories', story, 'structure.json'), 'r') as file:
+                title = json.load(file)['title']
 
             userID = User.query.filter_by(username=username).first().id
             storyID = get_story_id(title, userID)
             if storyID is None:
-                log_to_console(f"Story ID not found for story: {story} by user: {username}", tag="USER-STORIES", spacing=1)
+                log_to_console(f"Story ID not found for story: {story} by user: {username} (id:{userID})", tag="USER-STORIES", spacing=1)
                 continue
 
             url = '/story-' + str(storyID)
@@ -412,7 +421,8 @@ def public_stories():
             continue
 
         thumbnail = os.path.join(story['data_path'], 'thumbnail.jpg') # TODO - I decided to use enumerations for the story path instead of the title
-        #thumbnail = os.path.join(USERDATA_DIR, story['username'], 'stories', story['title'], 'thumbnail.jpg') 
+        #thumbnail = os.path.join(USERDATA_DIR, story['username'], 'stories', story['title'], 'thumbnail.jpg')
+
         thumbnail = get_thumbnail(thumbnail)
 
         story_data.append({
@@ -441,19 +451,39 @@ def story(storyID):
         if accessingUser != story_data['username']:
             return render_template('forbidden_access.html', error="You do not have permission to access this page, this story is private."), 403
         
+    processed_story_data = {}
     # Try access story data
     try:
-        os.path.exists(story_data['data_path'])
+        if not os.path.exists(story_data['data_path']):
+            raise FileNotFoundError("Story data not found")
         # Remove the first part of data path
-        story_data['safe_path'] = story_data['data_path'].replace(USERDATA_DIR, '')[1:] # Remove the first character which is a slash
+        processed_story_data['safe_path'] = story_data['data_path'].replace(USERDATA_DIR, '')[1:] # Remove the first character which is a slash
         # Change the data path so that it could be embedded in the page without creating errors due to \
-        story_data['safe_path'] = story_data['safe_path'].replace('\\', '/')
-        # TODO - Load story data
+        processed_story_data['safe_path'] = processed_story_data['safe_path'].replace('\\', '/') # NOTE: The reason we want story is data is so we can access the audio files
+
+        processed_story_data['title'] = story_data['title']
+        processed_story_data['author'] = story_data['username']
+
+        # Load paragraphs
+        paragraphs_path = os.path.join(story_data['data_path'], 'paragraphs.json')
+        with open(paragraphs_path, 'r') as file:
+            paragraphs = json.load(file)
+
+        contentBlocks = []
+
+        for i, paragraph in enumerate(paragraphs, start=1):
+            # TODO: Load audio and images or something idk
+            contentBlocks.append({
+                'type': 'text',
+                'text': paragraph,
+            })
+
+        processed_story_data['content'] = contentBlocks
 
     except FileNotFoundError:
         return render_template('content_not_found.html', error="Story data not found"), 404
         
-    return render_template('story.html', story=story_data)
+    return render_template('story.html', story=processed_story_data)
 
 
 #--------------------------------------API--------------------------------------#
@@ -493,29 +523,9 @@ def prompt():
         )
 
         reply = completion.choices[0].message.content
-        
 
-        json_story = client.chat.completions.create(
-        model = "llama-3.3-70b-specdec",
-        messages = [
-            {
-                "role": "system",
-                "content": "You are a storytelling assistant. You will receive full stories with a title, introduction, body and conclusion as your prompts. You must then read the story and separate its parts into a json structure. These parts of the story are usually seperated into paragraphs.\
-                    In between each section, you must also create two prompts based on the key points of the previous section in order to generate an image and appropriate audio, ensure these are json tagged accordingly. You must also create an image prompt based on the title of the story to serve as the story's thumbnail.\
-                    You must always use the same nomenclature to tag these sections, these are: title, paragraph(plus the number if there are multiple), conclusion, thumbnail, image, audio.\n"
-            },
-            {
-                "role": "user",
-                "content": "json"+reply
-            }
-        ],
-        temperature=1,
-        max_tokens=2048,
-        response_format={"type": "json_object"},
-        top_p=1
-        )
+        log_to_console(f"Reply: {reply}", tag="PROMPT", spacing=1)
 
-        log_to_console(f"Reply: {json_story.choices[0].message.content}", tag="PROMPT", spacing=1)
         return jsonify({
             'success': True,
             'reply': reply
@@ -707,7 +717,6 @@ def session_status():
     else:
         return jsonify({'loggedIn': False})
     
-import time
 @socketio.on('generate-story')
 def generate_story(data):
     emit('story-progress', {'message': 'Generating story...'})
@@ -715,14 +724,118 @@ def generate_story(data):
     story_content = data.get('content', None)
 
     data_path = os.path.join(USERDATA_DIR, username, 'stories')
-    data_path = os.path.join(data_path, f"{len(os.listdir(data_path)) + 1}") # Directories are enumerated
+    data_path = os.path.join(data_path, f"{len(os.listdir(data_path)) + 1}") # Directories are enumerated 
+    # Example data_path: <path to server>/static/userdata/<username>/stories/<story number>
+
     # Create the story directory
     os.makedirs(data_path)
 
-    title = 'Story Title' # TODO - Implement title generation
+    title = 'PLACEHOLDER TITLE' # If you see this, something broke :)
 
     log_to_console(f"Received story content: {story_content}", tag="GENERATE-STORY", spacing=1)
-    time.sleep(3) # Simulate story generation
+
+    emit('story-progress', {'message': 'Generating story structure...'})
+    json_story = client.chat.completions.create(
+        model = "llama-3.3-70b-specdec",
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a storytelling assistant. You will receive full stories with a title, introduction, body and conclusion as your prompts. You must then read the story and separate its parts into a json structure. These parts of the story are usually seperated into paragraphs.\
+                    In between each section, you must also create two prompts based on the key points of the previous section in order to generate an image and appropriate audio, ensure these are json tagged accordingly. You must also create an image prompt based on the title of the story to serve as the story's thumbnail.\
+                    You must also create a single prompt to create background music which will be played during the story.\
+                    You must always use the same nomenclature to tag these sections, these are: title, paragraph(plus the number if there are multiple), thumbnail, image, audio, music.\
+                    An example of the required structure is as follows: { \"title\": \"...\",\"thumbnail\": \"...\",\"paragraph1\": \"...\",\"image1\": \"...\",\"audio1\": \"...\",\"paragraph2\": \"...\",\"image2\": \"...\",\"audio2\": \"...\", \"music\": \"...\"}\n"
+            },
+            {
+                "role": "user",
+                "content": "json"+story_content
+            }
+        ],
+        temperature=1,
+        max_tokens=2048,
+        response_format={"type": "json_object"},
+        top_p=1
+    ) # TODO - Music prompt
+
+    log_to_console(f"Generated story structure: {json_story.choices[0].message.content}", tag="GENERATE-STORY", spacing=1)
+
+    # Save the story data to a json file
+    story_dict = json.loads(json_story.choices[0].message.content) # Parse the JSON response and get a dictionary
+    story_data_path = os.path.join(data_path, 'structure.json')
+    with open(story_data_path, 'w') as file: # This is mainly for debugging purposes as we only need to generate the story assets once
+        json.dump(story_dict, file, indent=4)
+
+    title = story_dict.get('title', 'Untitled Story')
+
+    emit('story-progress', {'message': "Creating story sequence..."})
+    
+    # Parse the dict to sequentially load content
+    # Iterate over the keys in the story
+    ignore_keys = ['title', 'thumbnail', 'music']
+    story_sequence = []
+    image_prompts = []
+    audio_prompts = []
+    for key in story_dict:
+        if key in ignore_keys:
+            continue
+
+        # Branch depending on the key
+        if key.startswith('paragraph'):
+            story_sequence.append(story_dict[key])
+        elif key.startswith('image'):
+            image_prompts.append(story_dict[key])
+        elif key.startswith('audio'):
+            audio_prompts.append(story_dict[key])
+
+    # Generate TTS audio files for each paragraph
+    emit('story-progress', {'message': "Generating speech..."})
+    # NOTE: I imagine TTS will always be loaded so nothing extra here
+    for i, paragraph in enumerate(story_sequence, start=1):
+        generate_tts_file(paragraph, os.path.join(data_path, f"paragraph_{i}.wav"))
+
+    # Generate sound effect files for each audio prompt
+    # TODO: If sound models are only loaded when needed uncomment the next line and setup the necessary logic
+    # emit('story-progress', {'message': "Loading sound model..."})
+    # LOGIC HERE
+
+    emit('story-progress', {'message': "Generating sound effects..."})
+    for i, audio_prompt in enumerate(audio_prompts, start=1):
+        generate_sound_file('audio', audio_prompt, os.path.join(data_path, f"audio_{i}")) # TODO - Variable length sound effects? random perchance?
+
+    # Generate music file for the story
+    # TODO - see above re: loading music model
+    # emit('story-progress', {'message': "Loading music model..."})
+    # LOGIC HERE
+
+    emit('story-progress', {'message': "Generating music..."})
+    music_prompt = story_dict.get('music', None)
+    if not music_prompt:
+        log_to_console("No music tag found in story dict", tag="GENERATE-STORY", spacing=1)
+        # TODO - hehe we need to fix this
+    else:
+        generate_sound_file('music', music_prompt, os.path.join(data_path, 'music'), duration=20) # TODO - Scale duration based on story length?
+
+    # Generate images
+    emit('story-progress', {'message': "Generating images..."})
+    for i, image_prompt in enumerate(image_prompts, start=1):
+        # TODO - Generate images
+        log_to_console(f"Hey man we're meant to have an image here: {image_prompt}", tag="GENERATE-STORY", spacing=1)
+
+    thumbnail_prompt = story_dict.get('thumbnail', None)
+    if not thumbnail_prompt:
+        log_to_console("No thumbnail tag found in story dict", tag="GENERATE-STORY", spacing=1)
+        # TODO - Handle this??? default thumbnail?
+
+    # TODO - Generate thumbnail
+    # TODO - Also create actual thumbnail from the generated image?? see previous project
+
+    emit('story-progress', {'message': "Committing story data..."})
+
+    # Save paragraphs to a separate json file
+    paragraphs_path = os.path.join(data_path, 'paragraphs.json')
+    with open(paragraphs_path, 'w') as file:
+        json.dump(story_sequence, file, indent=4)
+    
 
     # Currently all stories are private and need to be manually set to public TODO - remember to implement this 
     story_num = add_story_to_db(title=title, data_path=data_path, isPublic=False, user_id=User.query.filter_by(username=username).first().id)
@@ -820,7 +933,12 @@ def delete_folder(path: str) -> None:
         os.remove(path)
 
 
-DELETE_STORIES = True
+#-----------------------------------------------------Flags-----------------------------------------------------#
+
+# Flag to delete all stories from the database on server start
+DELETE_STORIES = False
+CLEAR_TEMP_ON_START = True # Flag to clear all temporary files on server start
+# NOTE: The Debug flag is set at the top of the file, while I would like to place it here it used for processes that are defined before this point
 
 if __name__ == '__main__':
     if not os.path.exists(USERDATA_DIR):
@@ -828,13 +946,14 @@ if __name__ == '__main__':
 
     init_db()
 
-    fix_userData()  # TODO - remove once all users have been fixed
+    #fix_userData()  # TODO - remove once all users have been fixed
 
     if CLEAR_TEMP_ON_START:
         clear_all_temp_files()
 
     with app.app_context():
         debug_users()
+        debug_stories()
         delete_redundant_users()
         if DELETE_STORIES:
             clear_stories()

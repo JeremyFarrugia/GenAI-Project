@@ -21,4 +21,6 @@ function playAudio(data_path) {
 function isAudioPlaying() {
     console.log('audio.paused: ' + audio.paused);
     return !audio.paused;
+
+    // Man this is gonna be a hard one to make
 }
