@@ -841,6 +841,26 @@ def generate_story(data):
     story_num = add_story_to_db(title=title, data_path=data_path, isPublic=False, user_id=User.query.filter_by(username=username).first().id)
     emit('story-complete', {'message': 'Story generated successfully!', 'title': title, 'url': f'/story-{story_num}'})
 
+@app.route('/get-audio', methods=['POST'])
+def get_audio():
+    data = request.json
+    data_path = data.get('data_path')
+    next_audio = data.get('file')
+
+    log_to_console(f"Received request for audio file: {data_path}, {next_audio}", tag="GET-AUDIO", spacing=1)
+
+    if not data_path or not next_audio:
+        return jsonify({'error': 'Missing data path or audio file index'}), 400
+    
+    path = os.path.join(USERDATA_DIR, data_path)
+    # Try get audio file
+    for file in os.listdir(path):
+        if file.startswith(next_audio):
+            return send_file(os.path.join(path, file), mimetype='audio/wav')
+        
+    return jsonify({'error': 'Audio file not found'}), 404
+    
+
 #-----------------------------------------------------Error Handling-----------------------------------------------------#
 
 # Page to display when content is not found
