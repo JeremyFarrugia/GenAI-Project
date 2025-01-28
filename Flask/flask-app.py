@@ -19,6 +19,8 @@ import torchaudio
 from audiocraft.models import AudioGen, MusicGen 
 from audiocraft.data.audio import audio_write
 
+from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, LMSDiscreteScheduler
+
 from PIL import Image
 from io import BytesIO
 import base64
@@ -57,7 +59,7 @@ load_dotenv()
 CLEAR_TEMP_ON_START = True # Flag to clear all temporary files on server start
 
 # NOTE: Debug mode causes the audio generation models to crash the server, but if set to false you will have to manually restart the server to see changes
-DEBUG = True
+DEBUG = False
 # I have also been informed that the reloader causes issues with groq
 
 #-------------------------------------------------------Server Setup-------------------------------------------------------#
@@ -84,12 +86,23 @@ tokeniser = AutoTokenizer.from_pretrained("facebook/mms-tts-eng")
 
 audio_model = None 
 music_model = None
+image_pipe = None
 if not DEBUG: # Safety - See above (DEBUG flag)
     audio_model = AudioGen.get_pretrained('facebook/audiogen-medium') # https://github.com/facebookresearch/audiocraft/blob/main/docs/AUDIOGEN.md  https://huggingface.co/facebook/audiogen-medium
     audio_model.set_generation_params(duration=5)  # Length of audio in seconds (Will be overwritten by the duration parameter in the generate_sound_file function)
     #music_model = MusicGen.get_pretrained('facebook/musicgen-melody') # https://huggingface.co/facebook/musicgen-melody
     music_model = MusicGen.get_pretrained('facebook/musicgen-medium') # Switched away from melody since it had features that were not needed (large caused memory errors) https://huggingface.co/facebook/musicgen-medium
     music_model.set_generation_params(duration=20)
+
+    scheduler = EulerDiscreteScheduler.from_pretrained("stabilityai/stable-diffusion-2-1-base", subfolder="scheduler")
+    image_pipe = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1-base", scheduler=scheduler, torch_dtype=torch.float16).to("cuda")
+    # Add model optimization
+    if torch.cuda.is_available():
+        image_pipe.enable_model_cpu_offload()  # Optimize memory usage
+        image_pipe.enable_vae_slicing()
+    if torch.cuda.device_count() > 1:
+        image_pipe.parallelize()  # Use multiple GPUs
+
 
 # User Model
 class User(db.Model):
@@ -295,6 +308,47 @@ def generate_sound_file(model: Literal['audio', 'music'], description: str, outp
         raise ValueError("Invalid model type")
 
     log_to_console(f"Audio file saved successfully", tag="GENERATE-AUDIO-FILE", spacing=1)
+
+
+def generate_image_file(description: str, output_path: str, style: Literal['realistic', 'artistic', 'cartoonish'] = 'artistic') -> None:
+    """
+    Generate an image file from the given description and save it to the output path
+    """
+    if DEBUG:
+        raise ValueError("Image generation is disabled in debug mode")
+
+    log_to_console(f"Generating image file for description: {description}", tag="GENERATE-IMAGE-FILE", spacing=1)
+
+    try:
+        # Style prompts dictionary
+        style_prompts = {
+            "realistic": "Realistic, highly detailed, professional photography, 8k, HDR lighting",
+            "artistic": "highly detailed, digital painting, trending on artstation, ethereal lighting, soft focus",
+            "cartoonish": "vibrant cartoon style, bold lines, pastel colors, dynamic composition"
+        }
+
+        # Enhance prompt with style
+        enhanced_prompt = f"{description}, {style_prompts.get(style, '')}"
+
+        # Generation parameters
+        params = {
+            'num_inference_steps': 28,
+            'guidance_scale': 7.5,
+            'negative_prompt': 'low quality, blurry, deformed, watermarked, signature',
+        }
+
+        # Generate image
+        image = image_pipe(enhanced_prompt, **params).images[0]
+
+        # Ensure directory exists and save
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        image.save(output_path, format='PNG')
+
+        log_to_console(f"Image file saved successfully to: {output_path}", tag="GENERATE-IMAGE-FILE", spacing=1)
+
+    except Exception as e:
+        log_to_console(f"Error generating image: {e}", tag="GENERATE-IMAGE-FILE", spacing=1)
+        raise e
 
 def validate_request(text: str, username: str, tag: str) -> tuple[bool, Response, int]:
     """
@@ -585,6 +639,46 @@ def sound_effect_request(): #TODO - change implementation to be more suitable fo
         return send_file(output_path, mimetype='audio/wav')
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/generate-image', methods=['POST'])
+def image_request():
+    try:
+        # disable debug mode temporarily
+        if DEBUG:
+            app.debug = False
+
+        # Get request data
+        request_data = {
+            'text': request.json.get('text', ''),
+            'username': request.json.get('username', ''),
+            'index': request.json.get('index', ''),
+            'style': request.json.get('style', 'artistic')
+        }
+
+        log_to_console(f"Received image generation request: {request_data}", tag="GENERATE-IMAGE", spacing=1)
+
+        validate_success, response, status_code = validate_request(
+            request_data['text'],
+            request_data['username'],
+            "GENERATE-IMAGE"
+        )
+        if not validate_success:
+            return response, status_code
+
+        # Create images directory if it doesn't exist
+        output_path = os.path.join(USERDATA_DIR, request_data['username'], 'temp', f"{request_data['index']}.png")
+
+        generate_image_file(request_data['text'], output_path, style=request_data['style'])
+
+        if DEBUG:
+            app.debug = True
+
+        return send_file(output_path, mimetype='image/png')
+
+    except Exception as e:
+        log_to_console(f"Error in image generation request: {str(e)}", tag="GENERATE-IMAGE", spacing=1)
+        return jsonify({'error': str(e)}), 500 #maybe change to wahtever idk error codes i copied jer
 
 @app.route('/login', methods=['POST'])
 def login():

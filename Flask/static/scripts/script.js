@@ -6,6 +6,8 @@ var user = 'User'; // The user's name (temporary)
 var loggedIn = false; // Whether the user is logged in or not
 var generatingAudio = false; //
 var generatingStory = false; // Prevent multiple story generations at once
+var generatingImage = false
+var imagesGenerated = []; // avoid generating multiple images for the same response
 
 var audio = new Audio();
 
@@ -401,6 +403,13 @@ async function executePrompt() {
                         </button>
                     </div>
                 `;
+                // Get the response container
+                const modelResponses = document.getElementsByClassName('model-response');
+                const lastResponseIndex = modelResponses.length - 1;
+                const lastResponseContainer = modelResponses[lastResponseIndex].closest('.model-response-container');
+
+                // Wait for image generation to complete
+                await generateImage(lastResponseContainer, lastResponseIndex);
             }
         } else {
             outputDiv.innerHTML += `<p style="color: red;" class = model-error>Error: ${result.error}</p>`;
@@ -553,5 +562,81 @@ function stopAudio() {
     const audioElements = document.getElementsByTagName('audio');
     for (let audio of audioElements) {
         audio.pause();
+    }
+}
+
+async function generateImage(parentDiv, index) {
+    if (generatingImage) {
+        console.log('Already generating an image.');
+        return;
+    }
+    if (imagesGenerated.includes(index)) {
+        console.log('Image already generated for this response');
+        return;
+    }
+
+    generatingImage = true;
+
+    try {
+        const modelResponse = parentDiv.getElementsByClassName('model-response')[0];
+        const fullText = modelResponse.innerText;
+
+        // Extract first paragraph to get scene description
+        const paragraphs = fullText.split('\n');
+        const title = paragraphs[0];
+        let sceneDescription  = paragraphs[1];
+
+        // limit description to first 2 sentences
+        const sentences = sceneDescription.split('.');
+        sceneDescription = sentences.slice(0, 2).join('.') + '.';
+
+        // Combine title and scene description
+        const imagePrompt = `${title}: ${sceneDescription}`;
+        
+        const response = await fetch('/generate-image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: sceneDescription,
+                username: user,
+                index: index,
+                style: 'artistic'
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const imageBlob = await response.blob();
+        const imageUrl = URL.createObjectURL(imageBlob);
+
+        const imageElement = document.createElement('img');
+        imageElement.src = imageUrl;
+        imageElement.className = 'generated-image';
+        imageElement.style.maxWidth = '100%';
+        imageElement.style.marginTop = '10px';
+
+        // Create image container if it doesn't exist
+        let imageContainer = parentDiv.querySelector('.story-image-container');
+        if (!imageContainer) {
+            imageContainer = document.createElement('div');
+            imageContainer.className = 'story-image-container';
+
+            // Insert after the model response paragraph but before generate button
+            const modelResponseElement = parentDiv.querySelector('.model-response');
+            modelResponseElement.insertAdjacentElement('afterend', imageContainer);
+        }
+
+        // Add image to container
+        imageContainer.appendChild(imageElement);
+        imagesGenerated.push(index);
+
+    } catch (error) {
+        outputDiv.innerHTML += `<p style="color: red;" class="model-error">Error generating image: ${error}</p>`;
+    } finally {
+        generatingImage = false;
     }
 }
