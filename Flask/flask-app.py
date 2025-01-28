@@ -57,7 +57,7 @@ load_dotenv()
 CLEAR_TEMP_ON_START = True # Flag to clear all temporary files on server start
 
 # NOTE: Debug mode causes the audio generation models to crash the server, but if set to false you will have to manually restart the server to see changes
-DEBUG = True
+DEBUG = False
 # I have also been informed that the reloader causes issues with groq
 
 #-------------------------------------------------------Server Setup-------------------------------------------------------#
@@ -494,8 +494,28 @@ def prompt():
 
         reply = completion.choices[0].message.content
         
-        log_to_console(f"Reply: {reply}", tag="PROMPT", spacing=1)
 
+        json_story = client.chat.completions.create(
+        model = "llama-3.3-70b-specdec",
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a storytelling assistant. You will receive full stories with a title, introduction, body and conclusion as your prompts. You must then read the story and separate its parts into a json structure. These parts of the story are usually seperated into paragraphs.\
+                    In between each section, you must also create two prompts based on the key points of the previous section in order to generate an image and appropriate audio, ensure these are json tagged accordingly. You must also create an image prompt based on the title of the story to serve as the story's thumbnail.\
+                    You must always use the same nomenclature to tag these sections, these are: title, paragraph(plus the number if there are multiple), conclusion, thumbnail, image, audio.\n"
+            },
+            {
+                "role": "user",
+                "content": "json"+reply
+            }
+        ],
+        temperature=1,
+        max_tokens=2048,
+        response_format={"type": "json_object"},
+        top_p=1
+        )
+
+        log_to_console(f"Reply: {json_story.choices[0].message.content}", tag="PROMPT", spacing=1)
         return jsonify({
             'success': True,
             'reply': reply
