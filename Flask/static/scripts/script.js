@@ -2,21 +2,10 @@ var outputDiv;
 var promptInput;
 var promptHistory = [];
 var promptHistoryIndex = 0;
-var user = 'User'; // The user's name (temporary)
-var loggedIn = false; // Whether the user is logged in or not
 var generatingAudio = false; //
 var generatingStory = false; // Prevent multiple story generations at once
 
 var audio = new Audio();
-
-var loginModal;
-var loginButton;
-var registerButton;
-
-var registerModal;
-var registerButton;
-
-var accountModal;
 
 var generated = []; // Used to avoid generating the same audio multiple times
 
@@ -28,284 +17,40 @@ document.addEventListener("DOMContentLoaded", async function (event) {
     outputDiv = document.getElementById('output');
     promptInput = document.getElementById('prompt-input');
 
-    loginModal = document.getElementById('loginModal');
-    registerModal = document.getElementById('registerModal');
-    accountModal = document.getElementById('accountModal');
+    await userOnPageLoad();
 
-    if (promptInput === null) {
-        console.log('Could not find the prompt input element. but don\'t worry You\'re probably on a different page.');
-    }
-    else {
-        // Execute the prompt when the user presses Enter
-        promptInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') executePrompt();
-        });
-
-        // Could remove - button up/down to retrieve previous prompts
-        promptInput.addEventListener('keydown', (e) => {
-            handlePromptKeydown(e);
-        });
-
-        // Audio button
-        document.getElementById('output').addEventListener('click', function(event) {
-            // Check if the clicked element is the audio button
-            if (event.target && (event.target.matches('button.audio-button') || event.target.matches('img.audio-icon'))) {
-                // Access the parent div of the clicked button
-                const parentDiv = event.target.closest('.model-response-container');
-                playAudio(parentDiv);
-            }
-            else if (event.target && event.target.matches('button.generate-button')) {
-                // Access the parent div of the clicked button
-                const parentDiv = event.target.closest('.model-response-container');
-                
-                generateStory(parentDiv);
-            }
-        });
-
-        // Focus on the input field
-        promptInput.focus();
-    }
-
-    // Check if the user is logged in
-    await checkSession();
-
-    // Handle login form submission
-    document.getElementById('loginForm').onsubmit = async (event) => {
-        attemptLogin(event);
-    };
-
-    // Handle register form submission
-    document.getElementById('registerForm').onsubmit = async (event) => {
-        createUser(event);
-    }
+    setupPrompt();
 });
 
-function openLogin() {
-    loginModal.style.display = 'block';
-}
+function setupPrompt() {
+    // Execute the prompt when the user presses Enter
+    promptInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') executePrompt();
+    });
 
-function closeLogin() {
-    loginModal.style.display = 'none';
-}
+    // Could remove - button up/down to retrieve previous prompts
+    promptInput.addEventListener('keydown', (e) => {
+        handlePromptKeydown(e);
+    });
 
-function swapLoginButton() {
-    loginButton = document.getElementById('login-button');
-    userButton = document.getElementById('user-button');
-    if (loginButton.style.display === 'none') {
-        loginButton.style.display = 'block';
-        userButton.style.display = 'none';
-    } else {
-        loginButton.style.display = 'none';
-        userButton.style.display = 'block';
-    }
-    /*loginButton.style.display = 'none';
-    userButton.style.display = 'block';*/
-}
-
-function switchToRegisterModal() {
-    loginModal.style.display = 'none';
-    registerModal.style.display = 'block';
-}
-
-function switchToLoginModal() {
-    registerModal.style.display = 'none';
-    loginModal.style.display = 'block';
-}
-
-function closeRegister() {
-    registerModal.style.display = 'none';
-}
-
-function changeUser() {
-    closeDetails();
-    openLogin();
-}
-
-function openDetails() {
-    accountModal.style.display = 'block';
-}
-
-function closeDetails() {
-    accountModal.style.display = 'none';
-}
-
-async function loginSuccess(username, setCookie = false) {
-    loggedIn = true;
-    user = username;
-
-    // Update the user's account details
-    document.getElementById('accountUsername').innerText = user;
-
-    // Update the account details button
-    document.getElementById('user-button').innerText = user;
-
-    if (setCookie) {
-        try {
-            const response = await fetch('/set-login-cookie', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    username: username,
-                })
-            });
-    
-            const result = await response.json();
-            if (response.ok) {
-                console.log('Cookie set:', result.message);
-            } else {
-                console.error('Error setting cookie:', result.error);
-            }
-        } catch (error) {
-            console.error('Error setting cookie:', error);
+    // Audio button
+    document.getElementById('output').addEventListener('click', function(event) {
+        // Check if the clicked element is the audio button
+        if (event.target && (event.target.matches('button.audio-button') || event.target.matches('img.audio-icon'))) {
+            // Access the parent div of the clicked button
+            const parentDiv = event.target.closest('.model-response-container');
+            playAudio(parentDiv);
         }
-    }
-
-
-    swapLoginButton();
-}
-
-async function checkSession() {
-    /*try { // Deprecated, using cookies instead
-        const response = await fetch('/session-status', {
-            method: 'GET',
-            credentials: 'include' // Include session cookies
-        });
-
-        const result = await response.json();
-
-        if (result.loggedIn) {
-            console.log(`User is logged in as: ${result.user}`);
-            loginSuccess(result.user);
-        } else {
-            console.log('User is not logged in.');
-            // UI is already set up
-        }
-    } catch (error) {
-        console.error('Error checking session status:', error);
-    }*/
-    
-        try {
-            const response = await fetch('/login-status', {
-                method: 'GET',
-                credentials: 'include' // Include session cookies
-            });
-    
-            const result = await response.json();
-    
-            if (result.logged_in) {
-                console.log(`User is logged in as: ${result.user}`);
-                loginSuccess(result.user, setCookie = false);
-            } else {
-                console.log('User is not logged in.');
-                // UI is already set up
-            }
-        } catch (error) {
-            console.error('Error checking session status:', error);
-        }
-}
-
-async function attemptLogin(event) {
-    event.preventDefault();
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
-
-    try {
-        const response = await fetch('/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                username: username,
-                password: password
-            })
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-            alert(result.message);
-            loginModal.style.display = 'none'; // Close login modal on successful login
-
-            loginSuccess(username, setCookie = true);
-        } else {
-            console.error('Error logging in:', result.error);
-            alert(result.error);
-        }
-    } catch (error) {
-        console.error('Error logging in:', error);
-        alert('An error occurred.');
-    }
-}
-
-async function logout() {
-    try {
-        const response = await fetch('/logout', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                username: user
-            })
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-            // Close the account details modal
-            closeDetails();
-
-            console.log(result.message);
-            loggedIn = false;
-
-            swapLoginButton();
-
-            // Clear the user's account details
-            document.getElementById('accountUsername').innerText = 'User';
+        else if (event.target && event.target.matches('button.generate-button')) {
+            // Access the parent div of the clicked button
+            const parentDiv = event.target.closest('.model-response-container');
             
-            // Clear the account details button
-            document.getElementById('user-button').innerText = 'User';
-
-            outputDiv.innerHTML = ''; // Clear the chat history
+            generateStory(parentDiv);
         }
-    }
-    catch (error) {
-        console.error('Error logging out:', error);
-    }
-}
+    });
 
-async function createUser(event) {
-    event.preventDefault();
-    const username = document.getElementById('register-username').value;
-    const password = document.getElementById('register-password').value;
-
-    try {
-        const response = await fetch('/register', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                username: username,
-                password: password
-            })
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-            alert(result.message);
-            registerModal.style.display = 'none'; // Close registration modal on successful login
-
-            loginSuccess(username, setCookie = true);
-        } else {
-            console.error('Error creating user:', result.error);
-            alert(result.error);
-        }
-    } catch (error) {
-        console.error('Error creating user:', error);
-        alert('An error occurred.');
-    }
+    // Focus on the input field
+    promptInput.focus();
 }
 
 function handlePromptKeydown(e) {
