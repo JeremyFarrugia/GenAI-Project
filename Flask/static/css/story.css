@@ -6,7 +6,7 @@
     margin-left: 15px;
 }
 
-#story-header button {
+#play-button {
     display: flex;
     padding: 10px;
     background: none;
@@ -43,4 +43,34 @@
     font-size: 1.4em;
     margin: 40px;
     line-height: 1.6em;
+}
+
+.story-options {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: row;
+    width: 100%;
+}
+
+.story-options button {
+    display: flex;
+    padding: 10px;
+    margin: 20px;
+    margin-top: 0px;
+    margin-bottom: 0px;
+    background: none;
+    border: none;
+    width: fit-content;
+    height: fit-content;
+    color: var(--link);
+    font-size: 1.5em;
+    cursor: pointer;
+    align-items: center;
+    flex-direction: row;
+}
+
+.story-options button:hover {
+    text-decoration: underline;
+    color: var(--link-highlight);
 }
