@@ -349,6 +349,128 @@ def get_thumbnail(thumbnail_path, debug: bool = False) -> Union[str, None]:
         log_to_console(f"Thumbnail not found at path: {thumbnail_path}", tag="THUMBNAIL", spacing=1)
         thumbnail_path = os.path.join(STATIC_DIR, 'assets', 'default_thumbnail.jpg')
         return base64.b64encode(open(thumbnail_path, 'rb').read()).decode('utf-8')
+    
+#-----------------------------------------------------Story Generation-----------------------------------------------------#
+
+def generate_story_tts(paragraphs: list[str], data_path: str) -> None:
+    """
+    Generate TTS audio files for the story paragraphs
+    The audio files are saved in the given data path and are named paragraph_1.wav, paragraph_2.wav, etc.
+
+    Parameters:
+    - paragraphs: A list of paragraphs in the story
+    - data_path: The path to the directory to save the audio files
+
+    """
+
+    # NOTE: I imagine TTS will always be loaded so nothing extra here
+    for i, paragraph in enumerate(paragraphs, start=1):
+        generate_tts_file(paragraph, os.path.join(data_path, f"paragraph_{i}.wav"))
+
+
+def create_story_sequence(story_dict: dict) -> tuple[list[str], list[str], list[str]]:
+    """
+    Create the sequence of the story based on the given dictionary
+    
+    Returns:
+    - The story sequence as a list of paragraphs
+    - The audio prompts as a list
+    - The image prompts as a list
+    """
+    # Parse the dict to sequentially load content
+    # Iterate over the keys in the story
+    ignore_keys = ['title', 'thumbnail', 'music']
+    story_sequence = []
+    image_prompts = []
+    audio_prompts = []
+    for key in story_dict:
+        if key in ignore_keys:
+            continue
+
+        # Branch depending on the key
+        if key.startswith('paragraph'):
+            story_sequence.append(story_dict[key])
+        elif key.startswith('image'):
+            image_prompts.append(story_dict[key])
+        elif key.startswith('audio'):
+            audio_prompts.append(story_dict[key])
+
+    return story_sequence, audio_prompts, image_prompts
+    
+def generate_story_sounds(audio_prompts: list[str], data_path: str) -> None:
+    """
+    Generate sound files for the story based on the given audio prompts
+    
+    Parameters:
+    - audio_prompts: A list of audio prompts
+    - data_path: The path to the directory to save the audio files
+    """
+    for i, audio_prompt in enumerate(audio_prompts, start=1):
+        generate_sound_file('audio', audio_prompt, os.path.join(data_path, f"audio_{i}.wav"))  # TODO - Variable length sound effects? random perchance
+
+def generate_story_music(story_dict: dict, data_path: str) -> None:
+    """
+    Generate the music file for the story based on the given story dictionary
+    
+    Parameters:
+    - story_dict: The dictionary containing the story data
+    - data_path: The path to the directory to save the music file
+    """
+    music_prompt = story_dict.get('music', None)
+    if not music_prompt:
+        log_to_console("No music tag found in story dict", tag="GENERATE-STORY", spacing=1)
+    else:
+        generate_sound_file('music', music_prompt, os.path.join(data_path, 'music'), duration=20) # TODO - Scale duration based on story length?
+
+
+def generate_story_images(image_prompts: list[str], story_dict: dict, data_path: str) -> None:
+    """
+    Generate images for the story based on the given image prompts
+    Also generates a thumbnail for the story
+    
+    Parameters:
+    - image_prompts: A list of image prompts
+    - data_path: The path to the directory to save the images
+    """
+    for i, image_prompt in enumerate(image_prompts, start=1):
+        # TODO - Generate images
+        log_to_console(f"Hey man we're meant to have an image here: {image_prompt}", tag="GENERATE-STORY", spacing=1)
+
+    thumbnail_prompt = story_dict.get('thumbnail', None)
+    if not thumbnail_prompt:
+        log_to_console("No thumbnail tag found in story dict", tag="GENERATE-STORY", spacing=1)
+
+    # TODO - Generate thumbnail
+    # TODO - Also create actual thumbnail from the generated image?? see previous project
+
+def save_paragraphs(paragraphs: list[str], data_path: str) -> None:
+    """
+    Save the paragraphs to a json file in the given data path
+    """
+    paragraphs_path = os.path.join(data_path, 'paragraphs.json')
+    with open(paragraphs_path, 'w') as file:
+        json.dump(paragraphs, file, indent=4)
+
+def regenerate_story(data_path: str) -> None:
+    """
+    Regenerate the story based on the given data path
+    (Currently regenerates the assets, doesn't regenerate the structure)
+    """
+
+    # Load the story data
+    story_data = {}
+    with open(os.path.join(data_path, 'structure.json'), 'r') as file:
+        story_data = json.load(file)
+
+    # Create the story sequence
+    story_sequence, audio_prompts, image_prompts = create_story_sequence(story_data)
+
+    # TODO - Model loading if implemented and necessary
+    # Generate the story assets
+    generate_story_tts(story_sequence, data_path)
+    generate_story_sounds(audio_prompts, data_path)
+    generate_story_images(image_prompts, story_data, data_path)
+    generate_story_music(story_data, data_path)
 
 #-----------------------------------------------------Routes-----------------------------------------------------#
 
@@ -443,13 +565,12 @@ def story(storyID):
     except ValueError:
         return render_template('content_not_found.html', error="Invalid story ID"), 404
     
+    accessingUser = session.get('username', None)
+    isOwner = accessingUser == story_data['username']
+    
     # If story is not public check if the user is logged in
-    if not story_data['isPublic']:
-        accessingUser = session.get('username', None)
-        if not accessingUser:
-            return render_template('forbidden_access.html', error="You do not have permission to access this page"), 403
-        if accessingUser != story_data['username']:
-            return render_template('forbidden_access.html', error="You do not have permission to access this page, this story is private."), 403
+    if not story_data['isPublic'] and not isOwner:
+        return render_template('forbidden_access.html', error="You do not have permission to access this page"), 403
         
     processed_story_data = {}
     # Try access story data
@@ -463,6 +584,7 @@ def story(storyID):
 
         processed_story_data['title'] = story_data['title']
         processed_story_data['author'] = story_data['username']
+        processed_story_data['isPublic'] = story_data['isPublic']
 
         # Load paragraphs
         paragraphs_path = os.path.join(story_data['data_path'], 'paragraphs.json')
@@ -483,7 +605,7 @@ def story(storyID):
     except FileNotFoundError:
         return render_template('content_not_found.html', error="Story data not found"), 404
         
-    return render_template('story.html', story=processed_story_data)
+    return render_template('story.html', story=processed_story_data, isOwner=isOwner)
 
 
 #--------------------------------------API--------------------------------------#
@@ -717,24 +839,13 @@ def session_status():
     else:
         return jsonify({'loggedIn': False})
     
-@socketio.on('generate-story')
-def generate_story(data):
-    emit('story-progress', {'message': 'Generating story...'})
-    username = data.get('username', None)
-    story_content = data.get('content', None)
-
-    data_path = os.path.join(USERDATA_DIR, username, 'stories')
-    data_path = os.path.join(data_path, f"{len(os.listdir(data_path)) + 1}") # Directories are enumerated 
-    # Example data_path: <path to server>/static/userdata/<username>/stories/<story number>
-
-    # Create the story directory
-    os.makedirs(data_path)
-
-    title = 'PLACEHOLDER TITLE' # If you see this, something broke :)
-
-    log_to_console(f"Received story content: {story_content}", tag="GENERATE-STORY", spacing=1)
-
-    emit('story-progress', {'message': 'Generating story structure...'})
+def create_story_structure(story_content: str, data_path: str) -> dict:
+    """
+    Create the structure for a story based on the given content
+    
+    Returns:
+    - The story structure as a dictionary
+    """
     json_story = client.chat.completions.create(
         model = "llama-3.3-70b-specdec",
         messages = [
@@ -765,42 +876,43 @@ def generate_story(data):
     with open(story_data_path, 'w') as file: # This is mainly for debugging purposes as we only need to generate the story assets once
         json.dump(story_dict, file, indent=4)
 
+    return story_dict
+    
+@socketio.on('generate-story')
+def generate_story(data):
+    emit('story-progress', {'message': 'Generating story...'})
+    username = data.get('username', None)
+    story_content = data.get('content', None)
+
+    data_path = os.path.join(USERDATA_DIR, username, 'stories')
+    data_path = os.path.join(data_path, f"{len(os.listdir(data_path)) + 1}") # Directories are enumerated 
+    # Example data_path: <path to server>/static/userdata/<username>/stories/<story number>
+
+    # Create the story directory
+    os.makedirs(data_path)
+
+    title = 'PLACEHOLDER TITLE' # If you see this, something broke :)
+
+    log_to_console(f"Received story content: {story_content}", tag="GENERATE-STORY", spacing=1)
+
+    emit('story-progress', {'message': 'Generating story structure...'})
+    story_dict = create_story_structure(story_content, data_path)
     title = story_dict.get('title', 'Untitled Story')
 
     emit('story-progress', {'message': "Creating story sequence..."})
     
-    # Parse the dict to sequentially load content
-    # Iterate over the keys in the story
-    ignore_keys = ['title', 'thumbnail', 'music']
-    story_sequence = []
-    image_prompts = []
-    audio_prompts = []
-    for key in story_dict:
-        if key in ignore_keys:
-            continue
-
-        # Branch depending on the key
-        if key.startswith('paragraph'):
-            story_sequence.append(story_dict[key])
-        elif key.startswith('image'):
-            image_prompts.append(story_dict[key])
-        elif key.startswith('audio'):
-            audio_prompts.append(story_dict[key])
+    story_sequence, audio_prompts, image_prompts = create_story_sequence(story_dict)
 
     # Generate TTS audio files for each paragraph
     emit('story-progress', {'message': "Generating speech..."})
-    # NOTE: I imagine TTS will always be loaded so nothing extra here
-    for i, paragraph in enumerate(story_sequence, start=1):
-        generate_tts_file(paragraph, os.path.join(data_path, f"paragraph_{i}.wav"))
+    generate_story_tts(story_sequence, data_path)
 
-    # Generate sound effect files for each audio prompt
     # TODO: If sound models are only loaded when needed uncomment the next line and setup the necessary logic
     # emit('story-progress', {'message': "Loading sound model..."})
     # LOGIC HERE
 
     emit('story-progress', {'message': "Generating sound effects..."})
-    for i, audio_prompt in enumerate(audio_prompts, start=1):
-        generate_sound_file('audio', audio_prompt, os.path.join(data_path, f"audio_{i}")) # TODO - Variable length sound effects? random perchance?
+    generate_story_sounds(audio_prompts, data_path)
 
     # Generate music file for the story
     # TODO - see above re: loading music model
@@ -808,33 +920,15 @@ def generate_story(data):
     # LOGIC HERE
 
     emit('story-progress', {'message': "Generating music..."})
-    music_prompt = story_dict.get('music', None)
-    if not music_prompt:
-        log_to_console("No music tag found in story dict", tag="GENERATE-STORY", spacing=1)
-        # TODO - hehe we need to fix this
-    else:
-        generate_sound_file('music', music_prompt, os.path.join(data_path, 'music'), duration=20) # TODO - Scale duration based on story length?
+    generate_story_music(story_dict, data_path)
 
     # Generate images
     emit('story-progress', {'message': "Generating images..."})
-    for i, image_prompt in enumerate(image_prompts, start=1):
-        # TODO - Generate images
-        log_to_console(f"Hey man we're meant to have an image here: {image_prompt}", tag="GENERATE-STORY", spacing=1)
-
-    thumbnail_prompt = story_dict.get('thumbnail', None)
-    if not thumbnail_prompt:
-        log_to_console("No thumbnail tag found in story dict", tag="GENERATE-STORY", spacing=1)
-        # TODO - Handle this??? default thumbnail?
-
-    # TODO - Generate thumbnail
-    # TODO - Also create actual thumbnail from the generated image?? see previous project
+    generate_story_images(image_prompts, story_dict, data_path)
 
     emit('story-progress', {'message': "Committing story data..."})
 
-    # Save paragraphs to a separate json file
-    paragraphs_path = os.path.join(data_path, 'paragraphs.json')
-    with open(paragraphs_path, 'w') as file:
-        json.dump(story_sequence, file, indent=4)
+    save_paragraphs(story_sequence, data_path)
     
 
     # Currently all stories are private and need to be manually set to public TODO - remember to implement this 
@@ -860,6 +954,19 @@ def get_audio():
         
     return jsonify({'error': 'Audio file not found'}), 404
     
+@app.route('/regenerate-<storyID>', methods=['POST'])
+def regenerate_story_route(storyID):
+    try:
+        storyID = int(storyID)
+        story_data = get_story_data(storyID)
+    except ValueError:
+        return jsonify({'error': 'Invalid story ID'}), 400
+    
+    log_to_console(f"Regenerating story: {story_data['title']}", tag="REGENERATE-STORY", spacing=1)
+
+    regenerate_story(story_data['data_path'])
+
+    return jsonify({'message': 'Story regenerated successfully'}), 200
 
 #-----------------------------------------------------Error Handling-----------------------------------------------------#
 

@@ -1,29 +1,29 @@
-var audio = new Audio();
-
-
-
-
-// TODO - Organise into sub-scripts
 
 document.addEventListener("DOMContentLoaded", async function (event) {
     await userOnPageLoad();
+    setupStorySelection();
+    
 });
 
+function setupStorySelection() {
+    document.querySelectorAll(".story-preview").forEach(story => {
+        story.addEventListener("click", function () {
+            const url = this.getAttribute("target_url");
+            if (url) {
+                console.log("Redirecting to:", url);
+                window.location.href = url;
+            } else {
+                console.error("No URL found!");
+            }
+        });
+    });
+}
 
+function redirectToStory(url) {
+    console.long('Redirecting to ' + url);
+}
 
 async function playAudio(parentDiv) {
     
 }
 
-function isAudioPlaying() {
-    console.log('audio.paused: ' + audio.paused);
-    return !audio.paused;
-}
-
-function stopAudio() {
-    // Stop all audio elements
-    const audioElements = document.getElementsByTagName('audio');
-    for (let audio of audioElements) {
-        audio.pause();
-    }
-}
