@@ -243,3 +243,19 @@ div {
     object-fit: cover;
     cursor: pointer;
 }
+
+.story-image-container {
+    margin: 15px 0;
+    width: 100%;
+}
+
+.image-loading {
+    padding: 10px;
+    color: #666;
+    font-style: italic;
+}
+
+.generated-image {
+    opacity: 0;
+    transition: opacity 0.5s ease-in;
+}

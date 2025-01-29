@@ -3,10 +3,13 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO, emit
 
-import os, json
+import os, json, warnings
 import numpy as np
 import soundfile as sf
 from typing import Union, Literal
+
+# Filter out specific torch warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='torch.nn.utils.weight_norm')
 
 from groq import Groq
 from dotenv import load_dotenv
@@ -16,8 +19,10 @@ import torch
 import scipy.io.wavfile as wav
 
 import torchaudio
-from audiocraft.models import AudioGen, MusicGen 
+from audiocraft.models import AudioGen, MusicGen
 from audiocraft.data.audio import audio_write
+
+from diffusers import AutoPipelineForText2Image, DPMSolverMultistepScheduler
 
 from PIL import Image
 from io import BytesIO
@@ -81,6 +86,10 @@ if not DEBUG:
 
 tts_model = VitsModel.from_pretrained("facebook/mms-tts-eng") # https://huggingface.co/facebook/mms-tts-eng  Consider wavnet? I think it's better but it requires use of google cloud services
 tokeniser = AutoTokenizer.from_pretrained("facebook/mms-tts-eng") 
+
+image_model = "stabilityai/sdxl-turbo" # https://huggingface.co/stabilityai/sdxl-turbo
+scheduler = DPMSolverMultistepScheduler.from_pretrained(image_model, subfolder="scheduler")
+image_pipe = AutoPipelineForText2Image.from_pretrained(image_model, scheduler=scheduler, torch_dtype=torch.float16, variant="fp16").to("cuda")
 
 audio_model = None 
 music_model = None
@@ -304,6 +313,39 @@ def generate_sound_file(model: Literal['audio', 'music'], description: str, outp
         raise ValueError("Invalid model type")
 
     log_to_console(f"Audio file saved successfully", tag="GENERATE-AUDIO-FILE", spacing=1)
+
+def generate_image_file(description: str, output_path: str) -> None:
+    """
+    Generate an image file from the given description and save it to the output path
+    """
+    log_to_console(f"Generating image file for description: {description}", tag="GENERATE-IMAGE-FILE", spacing=1)
+
+    try:
+        # Style prompts dictionary
+        style_prompts = {
+            "realistic": "Realistic, highly detailed, professional photography, 8k, HDR lighting",
+            "artistic": "highly detailed, digital painting, trending on artstation, ethereal lighting, soft focus",
+            "cartoonish": "vibrant cartoon style, bold lines, pastel colors, dynamic composition"
+        }
+        # Using hardcoded artistic style for now
+        enhanced_prompt = f"{description}, {style_prompts['realistic']}"
+
+        # Generation parameters
+        params = {
+            'num_inference_steps': 1,
+            'guidance_scale': 0.0,
+            'height': 512,
+            'width': 512
+        }
+        image = image_pipe(enhanced_prompt, **params).images[0]
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        image.save(output_path, format='PNG')
+
+        log_to_console(f"Image file saved successfully to: {output_path}", tag="GENERATE-IMAGE-FILE", spacing=1)
+
+    except Exception as e:
+        log_to_console(f"Error generating image: {e}", tag="GENERATE-IMAGE-FILE", spacing=1)
+        raise e
 
 def validate_request(text: str, username: str, tag: str) -> tuple[bool, Response, int]:
     """
@@ -740,6 +782,39 @@ def sound_effect_request(): #TODO - change implementation to be more suitable fo
         return send_file(output_path, mimetype='audio/wav')
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/generate-image', methods=['POST'])
+def image_request():
+    try:
+        # Get request data
+        request_data = {
+            'text': request.json.get('text', ''),
+            'username': request.json.get('username', ''),
+            'index': request.json.get('index', '')
+        }
+        log_to_console(f"Received image generation request: {request_data}", tag="GENERATE-IMAGE", spacing=1)
+
+        validate_success, response, status_code = validate_request(
+            request_data['text'],
+            request_data['username'],
+            "GENERATE-IMAGE"
+        )
+        if not validate_success:
+            return response, status_code
+
+        temp_dir = os.path.join(USERDATA_DIR, request_data['username'], 'temp')
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
+
+        output_path = os.path.join(temp_dir, f"{request_data['index']}.png")
+        generate_image_file(request_data['text'], output_path)
+
+        return send_file(output_path, mimetype='image/png')
+
+    except Exception as e:
+        log_to_console(f"Error in image generation request: {str(e)}", tag="GENERATE-IMAGE", spacing=1)
+        return jsonify({'error': str(e)}), 500 #maybe change to wahtever idk error codes i copied jer
 
 @app.route('/login', methods=['POST'])
 def login():
