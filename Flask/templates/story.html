@@ -55,9 +55,19 @@
                     Listen to this story
                     <img src = "{{ url_for('static', filename='assets/audio.png') }}" alt = "Audio Icon">
                 </button>
+                {% if isOwner %}
+                    <div class="story-options">
+                        {% if story.isPublic %}
+                            <button id="public-button" onclick="togglePublic(true)">Make Private</button>
+                        {% else %}
+                            <button id="public-button" onclick="togglePublic(false)">Make Public</button>
+                        {% endif %}
+                        <button id="regenerate-button" onclick="regenerateStory()">Regenerate Story</button>
+                    </div>
+                {% endif %}
             </div>
 
-            <div class="story-content" id = "story-content">
+            <div class="story-content" id = "story-content" story_id="{{ story.ID }}">
                 {% for contentBlock in story.content %}
                     {% if contentBlock.type == "text" %}
                         <p class="story-text">{{ contentBlock.text }}</p>

@@ -27,3 +27,20 @@
     flex-direction: column;
     width: 100%;
 }
+
+.story-content{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    padding: 20px;
+    padding-left: 40px;
+    padding-right: 40px;
+}
+
+.story-text {
+    text-align: left;
+    font-size: 1.4em;
+    margin: 40px;
+    line-height: 1.6em;
+}

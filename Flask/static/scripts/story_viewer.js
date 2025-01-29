@@ -7,10 +7,67 @@ var global_data_path = '';
 var inTimeout = true;
 var music = new Audio();
 
+function getStoryID(){
+    const story_content = document.getElementById("story-content");
+    return story_content.getAttribute("story_id");
+}
+
 
 document.addEventListener("DOMContentLoaded", async function (event) {
     await userOnPageLoad();
 });
+
+async function togglePublic(isPublic){
+
+    try {
+        const response = await fetch('/toggle-public', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                isPublic: isPublic,
+                storyID: getStoryID()
+            })
+        });
+
+        if(!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        // Refresh if successful
+        location.reload();
+    }
+    catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+async function regenerateStory(){
+    try {
+        const response = await fetch('/regenerate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                storyID: getStoryID()
+            })
+        });
+
+        if(!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        // Refresh if successful
+        location.reload();
+    }
+    catch (error) {
+        console.error('Error:', error);
+    }
+}
 
 function playAudio(data_path) {
     if (isAudioPlaying()) {

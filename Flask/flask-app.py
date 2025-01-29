@@ -547,11 +547,13 @@ def public_stories():
 
         thumbnail = get_thumbnail(thumbnail)
 
+        storyId = get_story_id(story['title'], User.query.filter_by(username=story['username']).first().id)
+
         story_data.append({
             'thumbnail': thumbnail,
             'title': story['title'],
-            'url': '/story-' + story['username'],
-            'creator': story['username']
+            'url': '/story-' + str(storyId),
+            'author': story['username']
         })
     
     return render_template('story_catalogue.html', stories=story_data, pageTitle="Public Stories")
@@ -585,6 +587,7 @@ def story(storyID):
         processed_story_data['title'] = story_data['title']
         processed_story_data['author'] = story_data['username']
         processed_story_data['isPublic'] = story_data['isPublic']
+        processed_story_data['ID'] = storyID
 
         # Load paragraphs
         paragraphs_path = os.path.join(story_data['data_path'], 'paragraphs.json')
@@ -954,10 +957,12 @@ def get_audio():
         
     return jsonify({'error': 'Audio file not found'}), 404
     
-@app.route('/regenerate-<storyID>', methods=['POST'])
-def regenerate_story_route(storyID):
+@app.route('/regenerate', methods=['POST'])
+def regenerate_story_route():
+    
     try:
-        storyID = int(storyID)
+        data = request.json
+        storyID = int(data.get('storyID'))
         story_data = get_story_data(storyID)
     except ValueError:
         return jsonify({'error': 'Invalid story ID'}), 400
@@ -967,6 +972,20 @@ def regenerate_story_route(storyID):
     regenerate_story(story_data['data_path'])
 
     return jsonify({'message': 'Story regenerated successfully'}), 200
+
+@app.route('/toggle-public', methods=['POST'])
+def toggle_public():
+    try:
+        data = request.json
+        storyID = int(data.get('storyID'))
+        story_data = get_story_data(storyID)
+        change_story_privacy(storyID, not story_data['isPublic'])
+    except ValueError:
+        return jsonify({'error': 'Invalid story ID'}), 400
+    
+    log_to_console(f"Toggling public status for story: {story_data['title']}", tag="TOGGLE-PUBLIC", spacing=1)
+
+    return jsonify({'message': 'Story privacy toggled successfully'}), 200
 
 #-----------------------------------------------------Error Handling-----------------------------------------------------#
 
