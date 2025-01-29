@@ -7,11 +7,30 @@ var global_data_path = '';
 var inTimeout = true;
 var music = new Audio();
 
+const textColour = "#ececec";
+const highlightColour = "#f0f0f0";
+const highlightBackgroundColour = "#000000";
+
 function getStoryID(){
     const story_content = document.getElementById("story-content");
     return story_content.getAttribute("story_id");
 }
 
+function highlightNextParagraph(){
+    const storyTexts = document.getElementsByClassName('story-text');
+    if(currentIndex > storyTexts.length){
+        return;
+    }
+    
+    highlightIndex = currentIndex - 1;
+    if(highlightIndex > 0){ // Unhighlight the previous paragraph
+        storyTexts[highlightIndex - 1].style.color = textColour;
+        // Reset background colour
+        storyTexts[highlightIndex - 1].style.backgroundColor = "transparent";
+    }
+    storyTexts[highlightIndex].style.color = highlightColour;
+    storyTexts[highlightIndex].style.backgroundColor = highlightBackgroundColour;
+}
 
 document.addEventListener("DOMContentLoaded", async function (event) {
     await userOnPageLoad();
@@ -122,6 +141,7 @@ async function transitionToNextAudio() {
     }
     else {
         nextAudio = `paragraph_${currentIndex}`;
+        highlightNextParagraph();
         soundEffectNext = true;
     }
 

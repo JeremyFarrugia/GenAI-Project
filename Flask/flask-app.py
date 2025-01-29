@@ -382,6 +382,8 @@ def get_thumbnail(thumbnail_path, debug: bool = False) -> Union[str, None]:
     """Get the thumbnail for a file if it exist otherwise return None"""
     log_to_console(f"Checking for thumbnail at path: {thumbnail_path}", tag="THUMBNAIL", spacing=1)
 
+    # TODO - Adding todo just so this stands out, this process becomes quite intensive if there are a lot of stories, ideally a set of thumbnails would be pre-computed, it saves a loooooot of computation
+
     if os.path.exists(thumbnail_path):
         with open(thumbnail_path, 'rb') as thumbnail_file:
             thumbnail = base64.b64encode(thumbnail_file.read()).decode('utf-8')
@@ -475,15 +477,13 @@ def generate_story_images(image_prompts: list[str], story_dict: dict, data_path:
     - data_path: The path to the directory to save the images
     """
     for i, image_prompt in enumerate(image_prompts, start=1):
-        # TODO - Generate images
-        log_to_console(f"Hey man we're meant to have an image here: {image_prompt}", tag="GENERATE-STORY", spacing=1)
+        generate_image_file(image_prompt, os.path.join(data_path, f"image_{i}.png"))
 
     thumbnail_prompt = story_dict.get('thumbnail', None)
     if not thumbnail_prompt:
         log_to_console("No thumbnail tag found in story dict", tag="GENERATE-STORY", spacing=1)
-
-    # TODO - Generate thumbnail
-    # TODO - Also create actual thumbnail from the generated image?? see previous project
+    else:
+        generate_image_file(thumbnail_prompt, os.path.join(data_path, 'thumbnail.png'))
 
 def save_paragraphs(paragraphs: list[str], data_path: str) -> None:
     """
@@ -545,7 +545,12 @@ def user_stories(username):
     try:
         for story in stories:
             log_to_console(f"Checking story: {story}", tag="USER-STORIES", spacing=1)
-            thumbnail = os.path.join(userData, 'stories', story, 'thumbnail.jpg')
+            # If directory empty skip
+            if not os.listdir(os.path.join(userData, 'stories', story)):
+                log_to_console(f"Story directory is empty: {story}", tag="USER-STORIES", spacing=1)
+                continue
+
+            thumbnail = os.path.join(userData, 'stories', story, 'thumbnail.png')
             thumbnail = get_thumbnail(thumbnail)
             # Get story title from structure file
             with open(os.path.join(userData, 'stories', story, 'structure.json'), 'r') as file:
@@ -584,7 +589,7 @@ def public_stories():
         if not story['isPublic']:
             continue
 
-        thumbnail = os.path.join(story['data_path'], 'thumbnail.jpg') # TODO - I decided to use enumerations for the story path instead of the title
+        thumbnail = os.path.join(story['data_path'], 'thumbnail.png') # TODO - I decided to use enumerations for the story path instead of the title
         #thumbnail = os.path.join(USERDATA_DIR, story['username'], 'stories', story['title'], 'thumbnail.jpg')
 
         thumbnail = get_thumbnail(thumbnail)
@@ -606,6 +611,7 @@ def story(storyID):
     try:
         storyID = int(storyID)
         story_data = get_story_data(storyID)
+        data_path = story_data['data_path']
     except ValueError:
         return render_template('content_not_found.html', error="Invalid story ID"), 404
     
@@ -636,14 +642,43 @@ def story(storyID):
         with open(paragraphs_path, 'r') as file:
             paragraphs = json.load(file)
 
+        # Get images
+        image_names = [f for f in os.listdir(story_data['data_path']) if f.startswith('image')]
+
+        # Get sound prompts from structure file
+        with open(os.path.join(data_path, 'structure.json'), 'r') as file:
+            story_dict = json.load(file)
+
+        # Create the story sequence
+        _, audio_prompts, _ = create_story_sequence(story_dict)
+
+
         contentBlocks = []
 
-        for i, paragraph in enumerate(paragraphs, start=1):
+        for i, paragraph in enumerate(paragraphs, start=0):
             # TODO: Load audio and images or something idk
             contentBlocks.append({
                 'type': 'text',
                 'text': paragraph,
             })
+
+            contentBlocks.append({
+                'type': 'sound',
+                'text': audio_prompts[i],
+            })
+
+            try:
+                contentBlocks.append({
+                    'type': 'image',
+                    'image': get_thumbnail(os.path.join(story_data['data_path'], image_names[i])) # I named this function badly, it's not just for thumbnails
+                })
+            except Exception as e:
+                log_to_console(f"Error loading image: {e}", tag="STORY", spacing=1)
+                contentBlocks.append({
+                    'type': 'image',
+                    'image': get_thumbnail(os.path.join(story_data['data_path'], 'thumbnail.jpg'))
+                })
+
 
         processed_story_data['content'] = contentBlocks
 

@@ -41,7 +41,8 @@
 .story-text {
     text-align: left;
     font-size: 1.4em;
-    margin: 40px;
+    margin: 10px;
+    padding: 30px;
     line-height: 1.6em;
 }
 
