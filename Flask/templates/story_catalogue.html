@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="{{ url_for('static', filename='assets/icon.png') }}">
+    <title>Dino's Emporium - {{ pageTitle }}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/story_catalogue.css') }}">
+    
+    <script src="{{ url_for('static', filename='scripts/user.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/story_selection.js') }}"></script>
+</head>
+
+<body>
+    <div id="page-content">
+        {% include 'sidebar.html' %}
+
+        <div id="page-content-inner">
+            {% include 'header.html' %}
+
+            <h1>{{ pageTitle }}</h1>
+
+            {% if not stories %}
+                {% if pageTitle == "Public Stories" %}
+                    <p> No public stories to display :c </p>
+                {% else %}
+                    <p> No stories to display :c </p>
+                    <p> Why not make one? </p>
+                {% endif %}
+            {% endif %}
+
+            <div class = "stories-container" id = "stories-container">
+                {% for story in stories %}
+                    <div class="story-preview" target_url='{{ story.url }}'>
+                        <img src="data:image/png;base64,{{ story.thumbnail }}" alt="{{ story.title }}" class="story-thumbnail">
+                        <h2>{{ story.title }}</h2>
+                        {% if story.author %}
+                            <p>by {{ story.author }}</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            {% include 'footer.html' %}
+        </div>
+    </div>
+</body>
+
+</html>

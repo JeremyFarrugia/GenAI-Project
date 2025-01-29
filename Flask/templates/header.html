@@ -1,5 +1,9 @@
 <header class="header">
-    <div class="header-title">slop center</div>
+    <img src="{{ url_for('static', filename='assets/icon.png') }}" alt="Dino's Emporium" class="header-icon" id="header-icon">
+    <div class="header-title">Dino's Emporium</div>
     <button class="header-button" onclick="openLogin()" id="login-button">Log In</button>
     <button class="header-button" onclick="openDetails()" id="user-button">GUEST</button>
 </header>
+
+<!-- Account modals -->
+{% include 'account_modals.html' %}

@@ -7,28 +7,30 @@
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="{{ url_for('static', filename='assets/icon.png') }}">
-    <title>slop center</title>
+    <title>Dino's Emporium</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}">
 
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='scripts/user.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/script.js') }}"></script>
 </head>
 
 <body>
-    <!-- Title -->
-    {% include 'header.html' %}
-
-    <!-- Account modals -->
-    {% include 'account_modals.html' %}
+    
+    <!-- Feedback modal -->
+    {% include 'feedback_modal.html' %}
 
     <!-- A bit of a hack but it makes something work nicely -->
     <script>
         const audioIconUrl = "{{ url_for('static', filename='assets/audio.png') }}";
     </script>
 
+    
     <!-- Modal Error box -->
     <div id="modalPopup" class="modal"> <!-- I think this may come in handy, it is also from another project -->
         <div class="modal-content">
@@ -37,17 +39,22 @@
         </div>
     </div>
 
-    <div id="output"></div>
-    <div id="input-container">
-        <input type="text" id="prompt-input" placeholder="Enter Prompt" />
-        <button id="execute-btn" onclick="executePrompt()">Send</button>
-    </div>
+    <div id="page-content">
+        {% include 'sidebar.html' %}
 
-    <footer>
-        <p> Project by Jeremy, Luke & Rhea </p>
-        <p><a id="info-button" href="#info-area"> Click Here to find out More... </a></p>
-        <!-- I had done this in another project, we can adapt it or just ignore it -->
-    </footer>
+        <div id="page-content-inner">
+            <!-- Title -->
+            {% include 'header.html' %}
+
+            <div id="output"></div>
+            <div id="input-container">
+                <input type="text" id="prompt-input" placeholder="Enter Prompt" />
+                <button id="execute-btn" onclick="executePrompt()">Send</button>
+            </div>
+
+            {% include 'footer.html' %}
+        </div>
+    </div>
 </body>
 
 </html>

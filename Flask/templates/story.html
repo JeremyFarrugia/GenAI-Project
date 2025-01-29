@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="{{ url_for('static', filename='assets/icon.png') }}">
+    <title>Dino's Emporium - {{ story.title }}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/story.css') }}">
+    
+    <script src="{{ url_for('static', filename='scripts/user.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/story_viewer.js') }}"></script>
+</head>
+
+<body>
+    
+    <!-- Feedback modal -->
+    {% include 'feedback_modal.html' %}
+
+    <!-- A bit of a hack but it makes something work nicely -->
+    <script>
+        const audioIconUrl = "{{ url_for('static', filename='assets/audio.png') }}";
+    </script>
+
+    
+    <!-- Modal Error box -->
+    <div id="modalPopup" class="modal"> <!-- I think this may come in handy, it is also from another project -->
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <p id="modal-message"></p>
+        </div>
+    </div>
+
+    <div id="page-content">
+        {% include 'sidebar.html' %}
+
+        <div id="page-content-inner">
+            <!-- Title -->
+            {% include 'header.html' %}
+
+            <div class="story-header" id = "story-header">
+                <div class="story-title" id = "story-title">
+                    <h1>{{ story.title }}</h1>
+                    <h2>by {{ story.author }}</h2>
+                </div>
+                <button id="play-button" onclick="playAudio('{{ story.safe_path }}')">
+                    Listen to this story
+                    <img src = "{{ url_for('static', filename='assets/audio.png') }}" alt = "Audio Icon">
+                </button>
+                {% if isOwner %}
+                    <div class="story-options">
+                        {% if story.isPublic %}
+                            <button id="public-button" onclick="togglePublic(true)">Make Private</button>
+                        {% else %}
+                            <button id="public-button" onclick="togglePublic(false)">Make Public</button>
+                        {% endif %}
+                        <button id="regenerate-button" onclick="regenerateStory()">Regenerate Story</button>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="story-content" id = "story-content" story_id="{{ story.ID }}">
+                {% for contentBlock in story.content %}
+                    {% if contentBlock.type == "text" %}
+                        <p class="story-text">{{ contentBlock.text }}</p>
+                    {% elif contentBlock.type == "image" %}
+                        <img src="data:image/png;base64,{{ contentBlock.image }}" alt="{{ contentBlock.alt }}" class="story-image">
+                    {% elif contentBlock.type == "sound" %}
+                        <p class="sound-text">{{ contentBlock.text }}</p>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            {% include 'footer.html' %}
+        </div>
+    </div>
+</body>
+
+</html>

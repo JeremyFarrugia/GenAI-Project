@@ -59,8 +59,8 @@ div {
     z-index: 1;
     left: 0;
     top: 0;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     overflow: auto;
     background-color: rgba(0, 0, 0, 0.4);
 }
@@ -143,6 +143,18 @@ div {
     display: none;
 }
 
+.header-icon {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+}
+
+.sidebar-icon {
+    width: 128px;
+    height: 128px;
+    object-fit: cover;
+}
+
 .modal-content h2 {
     color: var(--black);
     font-size: 1.5em;
@@ -189,6 +201,29 @@ div {
     align-items: center;
 }
 
+.chat-container-inner {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+    text-align: left;
+}
+
+.chat-container-inner h3 {
+    margin-bottom: 0px;
+}
+
+.model-response-container h3{
+    text-align: left;
+    align-self: flex-start;
+}
+
+.user-prompt-container h3 {
+    text-align: right;
+    align-self: flex-end;
+}
+
 .model-response-container button {
     display: flex;
     padding: 10px;
@@ -207,4 +242,20 @@ div {
     height: 40px;
     object-fit: cover;
     cursor: pointer;
+}
+
+.story-image-container {
+    margin: 15px 0;
+    width: 100%;
+}
+
+.image-loading {
+    padding: 10px;
+    color: #666;
+    font-style: italic;
+}
+
+.generated-image {
+    opacity: 0;
+    transition: opacity 0.5s ease-in;
 }

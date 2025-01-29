@@ -1,0 +1,77 @@
+#play-button img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    cursor: pointer;
+    margin-left: 15px;
+}
+
+#play-button {
+    display: flex;
+    padding: 10px;
+    background: none;
+    border: none;
+    width: fit-content;
+    height: fit-content;
+    color: var(--white);
+    font-size: 1.5em;
+    cursor: pointer;
+    align-items: center;
+    flex-direction: row;
+}
+
+#story-header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    width: 100%;
+}
+
+.story-content{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    padding: 20px;
+    padding-left: 40px;
+    padding-right: 40px;
+}
+
+.story-text {
+    text-align: left;
+    font-size: 1.4em;
+    margin: 10px;
+    padding: 30px;
+    line-height: 1.6em;
+}
+
+.story-options {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: row;
+    width: 100%;
+}
+
+.story-options button {
+    display: flex;
+    padding: 10px;
+    margin: 20px;
+    margin-top: 0px;
+    margin-bottom: 0px;
+    background: none;
+    border: none;
+    width: fit-content;
+    height: fit-content;
+    color: var(--link);
+    font-size: 1.5em;
+    cursor: pointer;
+    align-items: center;
+    flex-direction: row;
+}
+
+.story-options button:hover {
+    text-decoration: underline;
+    color: var(--link-highlight);
+}
