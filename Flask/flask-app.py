@@ -699,6 +699,24 @@ def prompt():
 
     if user_prompt == "error":
             raise Exception("Why would you want to see an error?")
+    
+    try:
+        guard = client.chat.completions.create(
+            model="llama-guard-3-8b",
+            messages =[{"role": "user",
+                        "content": user_prompt}],
+            temperature=0.0,
+            max_tokens=1,
+            top_p=1
+        )
+
+        if guard.choices[0].message.content.strip().lower() == "safe":
+            log_to_console("Prompt is safe", tag="PROMPT", spacing=1)
+        else:
+            log_to_console("Prompt not safe", tag="PROMPT", spacing=1)
+            return jsonify({'error': 'Prompt not safe'})
+    except Exception as e:
+        return jsonify({'error': 'Prompt not safe'})
 
     if DEBUG:
         return jsonify({
