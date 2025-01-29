@@ -8,6 +8,7 @@ var generatingAudio = false; //
 var generatingStory = false; // Prevent multiple story generations at once
 var generatingImage = false
 var imagesGenerated = []; // avoid generating multiple images for the same response
+let pendingImageGenerations = new Map();
 
 var audio = new Audio();
 
@@ -363,64 +364,67 @@ async function executePrompt() {
     }
 
     promptHistoryIndex = 0;
-
     promptInput.value = '';
 
-    // Display the prompt in the output
-    outputDiv.innerHTML += `
-        <div class="user-prompt-container text-container">
-            <div class="chat-container-inner">
-                <h3 class="user-prompt-header">${user}</h3>
-                <p style="color: #00ff00;" class = user-prompt>${prompt}</p>
-            </div>
+    // Create response container
+    const responseIndex = document.getElementsByClassName('model-response').length;
+    const responseContainer = document.createElement('div');
+    responseContainer.className = 'model-response-container text-container';
+    responseContainer.innerHTML = `
+        <div class="chat-container-inner">
+            <h3 class="model-response-header">Dino</h3>
+            <p class="model-response"></p>
+            <button class="generate-button">Create Story</button>
         </div>
+        <button class="audio-button">
+            <img src="${audioIconUrl}" alt="Play audio" class="audio-icon">
+        </button>
     `;
 
+    outputDiv.appendChild(responseContainer);
+
     try {
+        // Get model response first
         const response = await fetch('/prompt', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                prompt: prompt
-            })
+            body: JSON.stringify({ prompt })
         });
 
         const result = await response.json();
 
-        if (result.success) {
-            if (result.reply) {
-                outputDiv.innerHTML += `
-                    <div class="model-response-container text-container">
-                        <div class="chat-container-inner">
-                            <h3 class="model-response-header">Dino</h3>
-                            <p class=model-response>${result.reply}</p>
-                            <button class="generate-button"> Create Story </button>
-                        </div>
-                        <button class="audio-button">
-                            <img src="${audioIconUrl}" alt="Play audio" class="audio-icon">
-                        </button>
-                    </div>
-                `;
-                // Get the response container
-                const modelResponses = document.getElementsByClassName('model-response');
-                const lastResponseIndex = modelResponses.length - 1;
-                const lastResponseContainer = modelResponses[lastResponseIndex].closest('.model-response-container');
+        if (result.success && result.reply) {
+            // Update the response text
+            const modelResponse = responseContainer.querySelector('.model-response');
+            modelResponse.textContent = result.reply;
 
-                // Wait for image generation to complete
-                await generateImage(lastResponseContainer, lastResponseIndex);
-            }
+            // Now add the image container and start image generation
+            const chatContainer = responseContainer.querySelector('.chat-container-inner');
+            const imageContainer = document.createElement('div');
+            imageContainer.className = 'story-image-container';
+            imageContainer.innerHTML = '<div class="image-loading">Generating image...</div>';
+
+            // Insert image container before the create story button
+            const generateButton = responseContainer.querySelector('.generate-button');
+            chatContainer.insertBefore(imageContainer, generateButton);
+
+            // Start image generation after text is loaded
+            const imageGenPromise = generateImage(responseContainer, responseIndex);
+            pendingImageGenerations.set(responseIndex, imageGenPromise);
+
+            // Wait for image generation to complete
+            await imageGenPromise;
+            pendingImageGenerations.delete(responseIndex);
         } else {
-            outputDiv.innerHTML += `<p style="color: red;" class = model-error>Error: ${result.error}</p>`;
+            outputDiv.innerHTML += `<p style="color: red;" class="model-error">Error: ${result.error}</p>`;
         }
     } catch (error) {
-        outputDiv.innerHTML += `<p style="color: red;" class = model-error>Error: ${error}</p>`;
+        outputDiv.innerHTML += `<p style="color: red;" class="model-error">Error: ${error}</p>`;
     }
 
-    // Scroll to the bottom and clear the input
     window.scrollTo(0, document.body.scrollHeight);
-    promptInput.value = '';
 }
 
 async function generateStory(parentDiv) {
@@ -566,74 +570,65 @@ function stopAudio() {
 }
 
 async function generateImage(parentDiv, index) {
-    if (generatingImage) {
-        console.log('Already generating an image.');
+    if (generatingImage || imagesGenerated.includes(index)) {
+        console.log('Image already being generated.');
         return;
     }
-    if (imagesGenerated.includes(index)) {
-        console.log('Image already generated for this response');
-        return;
-    }
-
     generatingImage = true;
+
+    const imageContainer = parentDiv.querySelector('.story-image-container');
+    const loadingDiv = imageContainer.querySelector('.image-loading');
 
     try {
         const modelResponse = parentDiv.getElementsByClassName('model-response')[0];
-        const fullText = modelResponse.innerText;
+        const lines = modelResponse.innerText.split('\n').filter(line => line.trim());
 
-        // Extract first paragraph to get scene description
-        const paragraphs = fullText.split('\n');
-        const title = paragraphs[0];
-        let sceneDescription  = paragraphs[1];
+        // Get title and first sentence
+        const title = lines[0];
+        const firstSentence = lines.slice(1)
+            .find(line => line.includes('.'))
+            ?.split('.')[0] + '.' || '';
 
-        // limit description to first 2 sentences
-        const sentences = sceneDescription.split('.');
-        sceneDescription = sentences.slice(0, 2).join('.') + '.';
+        const imagePrompt = `$${title}: ${firstSentence}`;
+        loadingDiv.textContent = 'Sending request to image generator...';
 
-        // Combine title and scene description
-        const imagePrompt = `${title}: ${sceneDescription}`;
-        
         const response = await fetch('/generate-image', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                text: sceneDescription,
+                text: imagePrompt,
                 username: user,
-                index: index,
-                style: 'artistic'
+                index: index
             })
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
+        loadingDiv.textContent = 'Processing generated image...';
         const imageBlob = await response.blob();
         const imageUrl = URL.createObjectURL(imageBlob);
 
-        const imageElement = document.createElement('img');
+        // Create image element
+        const imageElement = new Image();
+
+        // Set up image load handling
+        imageElement.onload = () => {
+            imageElement.className = 'generated-image';
+            imageElement.style = 'max-width: 100%; margin-top: 10px; opacity: 0;';
+            imageContainer.appendChild(imageElement);
+
+            // Fade in the image lol
+            requestAnimationFrame(() => {
+                imageElement.style.transition = 'opacity 0.5s ease-in';
+                imageElement.style.opacity = '1';
+                loadingDiv.remove();
+            });
+        };
+        // Set the image source to trigger loading
         imageElement.src = imageUrl;
-        imageElement.className = 'generated-image';
-        imageElement.style.maxWidth = '100%';
-        imageElement.style.marginTop = '10px';
-
-        // Create image container if it doesn't exist
-        let imageContainer = parentDiv.querySelector('.story-image-container');
-        if (!imageContainer) {
-            imageContainer = document.createElement('div');
-            imageContainer.className = 'story-image-container';
-
-            // Insert after the model response paragraph but before generate button
-            const modelResponseElement = parentDiv.querySelector('.model-response');
-            modelResponseElement.insertAdjacentElement('afterend', imageContainer);
-        }
-
-        // Add image to container
-        imageContainer.appendChild(imageElement);
         imagesGenerated.push(index);
-
     } catch (error) {
         outputDiv.innerHTML += `<p style="color: red;" class="model-error">Error generating image: ${error}</p>`;
     } finally {

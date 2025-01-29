@@ -237,10 +237,13 @@ div {
     width: 100%;
 }
 
+.image-loading {
+    padding: 10px;
+    color: #666;
+    font-style: italic;
+}
+
 .generated-image {
-    max-width: 100%;
-    border-radius: 8px;
-    display: block;
-    margin: 0 auto;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    transition: opacity 0.5s ease-in;
 }

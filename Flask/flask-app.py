@@ -3,10 +3,13 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO, emit
 
-import os, json
+import os, json, warnings
 import numpy as np
 import soundfile as sf
 from typing import Union, Literal
+
+# Filter out specific torch warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='torch.nn.utils.weight_norm')
 
 from groq import Groq
 from dotenv import load_dotenv
@@ -16,10 +19,10 @@ import torch
 import scipy.io.wavfile as wav
 
 import torchaudio
-from audiocraft.models import AudioGen, MusicGen 
+from audiocraft.models import AudioGen, MusicGen
 from audiocraft.data.audio import audio_write
 
-from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, LMSDiscreteScheduler
+from diffusers import AutoPipelineForText2Image, DPMSolverMultistepScheduler
 
 from PIL import Image
 from io import BytesIO
@@ -84,25 +87,18 @@ if not DEBUG:
 tts_model = VitsModel.from_pretrained("facebook/mms-tts-eng") # https://huggingface.co/facebook/mms-tts-eng  Consider wavnet? I think it's better but it requires use of google cloud services
 tokeniser = AutoTokenizer.from_pretrained("facebook/mms-tts-eng") 
 
+image_model = "stabilityai/sdxl-turbo" # https://huggingface.co/stabilityai/sdxl-turbo
+scheduler = DPMSolverMultistepScheduler.from_pretrained(image_model, subfolder="scheduler")
+image_pipe = AutoPipelineForText2Image.from_pretrained(image_model, scheduler=scheduler, torch_dtype=torch.float16, variant="fp16").to("cuda")
+
 audio_model = None 
 music_model = None
-image_pipe = None
 if not DEBUG: # Safety - See above (DEBUG flag)
     audio_model = AudioGen.get_pretrained('facebook/audiogen-medium') # https://github.com/facebookresearch/audiocraft/blob/main/docs/AUDIOGEN.md  https://huggingface.co/facebook/audiogen-medium
     audio_model.set_generation_params(duration=5)  # Length of audio in seconds (Will be overwritten by the duration parameter in the generate_sound_file function)
     #music_model = MusicGen.get_pretrained('facebook/musicgen-melody') # https://huggingface.co/facebook/musicgen-melody
     music_model = MusicGen.get_pretrained('facebook/musicgen-medium') # Switched away from melody since it had features that were not needed (large caused memory errors) https://huggingface.co/facebook/musicgen-medium
     music_model.set_generation_params(duration=20)
-
-    scheduler = EulerDiscreteScheduler.from_pretrained("stabilityai/stable-diffusion-2-1-base", subfolder="scheduler")
-    image_pipe = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1-base", scheduler=scheduler, torch_dtype=torch.float16).to("cuda")
-    # Add model optimization
-    if torch.cuda.is_available():
-        image_pipe.enable_model_cpu_offload()  # Optimize memory usage
-        image_pipe.enable_vae_slicing()
-    if torch.cuda.device_count() > 1:
-        image_pipe.parallelize()  # Use multiple GPUs
-
 
 # User Model
 class User(db.Model):
@@ -309,14 +305,10 @@ def generate_sound_file(model: Literal['audio', 'music'], description: str, outp
 
     log_to_console(f"Audio file saved successfully", tag="GENERATE-AUDIO-FILE", spacing=1)
 
-
-def generate_image_file(description: str, output_path: str, style: Literal['realistic', 'artistic', 'cartoonish'] = 'artistic') -> None:
+def generate_image_file(description: str, output_path: str) -> None:
     """
     Generate an image file from the given description and save it to the output path
     """
-    if DEBUG:
-        raise ValueError("Image generation is disabled in debug mode")
-
     log_to_console(f"Generating image file for description: {description}", tag="GENERATE-IMAGE-FILE", spacing=1)
 
     try:
@@ -326,21 +318,17 @@ def generate_image_file(description: str, output_path: str, style: Literal['real
             "artistic": "highly detailed, digital painting, trending on artstation, ethereal lighting, soft focus",
             "cartoonish": "vibrant cartoon style, bold lines, pastel colors, dynamic composition"
         }
-
-        # Enhance prompt with style
-        enhanced_prompt = f"{description}, {style_prompts.get(style, '')}"
+        # Using hardcoded artistic style for now
+        enhanced_prompt = f"{description}, {style_prompts['realistic']}"
 
         # Generation parameters
         params = {
-            'num_inference_steps': 28,
-            'guidance_scale': 7.5,
-            'negative_prompt': 'low quality, blurry, deformed, watermarked, signature',
+            'num_inference_steps': 1,
+            'guidance_scale': 0.0,
+            'height': 512,
+            'width': 512
         }
-
-        # Generate image
         image = image_pipe(enhanced_prompt, **params).images[0]
-
-        # Ensure directory exists and save
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         image.save(output_path, format='PNG')
 
@@ -644,18 +632,12 @@ def sound_effect_request(): #TODO - change implementation to be more suitable fo
 @app.route('/generate-image', methods=['POST'])
 def image_request():
     try:
-        # disable debug mode temporarily
-        if DEBUG:
-            app.debug = False
-
         # Get request data
         request_data = {
             'text': request.json.get('text', ''),
             'username': request.json.get('username', ''),
-            'index': request.json.get('index', ''),
-            'style': request.json.get('style', 'artistic')
+            'index': request.json.get('index', '')
         }
-
         log_to_console(f"Received image generation request: {request_data}", tag="GENERATE-IMAGE", spacing=1)
 
         validate_success, response, status_code = validate_request(
@@ -666,13 +648,12 @@ def image_request():
         if not validate_success:
             return response, status_code
 
-        # Create images directory if it doesn't exist
-        output_path = os.path.join(USERDATA_DIR, request_data['username'], 'temp', f"{request_data['index']}.png")
+        temp_dir = os.path.join(USERDATA_DIR, request_data['username'], 'temp')
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
 
-        generate_image_file(request_data['text'], output_path, style=request_data['style'])
-
-        if DEBUG:
-            app.debug = True
+        output_path = os.path.join(temp_dir, f"{request_data['index']}.png")
+        generate_image_file(request_data['text'], output_path)
 
         return send_file(output_path, mimetype='image/png')
 
