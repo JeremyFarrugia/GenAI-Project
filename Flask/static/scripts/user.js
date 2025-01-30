@@ -29,17 +29,14 @@ async function userOnPageLoad() {
     }
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 function openLogin() {
     loginModal.style.display = 'block';
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 function closeLogin() {
     loginModal.style.display = 'none';
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 function swapLoginButton() {
     loginButton = document.getElementById('login-button');
     userButton = document.getElementById('user-button');
@@ -54,40 +51,33 @@ function swapLoginButton() {
     userButton.style.display = 'block';*/
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 function switchToRegisterModal() {
     loginModal.style.display = 'none';
     registerModal.style.display = 'block';
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 function switchToLoginModal() {
     registerModal.style.display = 'none';
     loginModal.style.display = 'block';
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 function closeRegister() {
     registerModal.style.display = 'none';
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 function changeUser() {
     closeDetails();
     openLogin();
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 function openDetails() {
     accountModal.style.display = 'block';
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 function closeDetails() {
     accountModal.style.display = 'none';
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 async function loginSuccess(username, setCookie = false) {
     loggedIn = true;
     user = username;
@@ -119,13 +109,15 @@ async function loginSuccess(username, setCookie = false) {
         } catch (error) {
             console.error('Error setting cookie:', error);
         }
+
+        // Refresh the page to update the UI - lazy way of fixing UI issues that persist and clearing the chat
+        location.reload();
     }
 
 
     swapLoginButton();
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 async function checkSession() {
         try {
             const response = await fetch('/login-status', {
@@ -147,7 +139,6 @@ async function checkSession() {
         }
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 async function attemptLogin(event) {
     event.preventDefault();
     const username = document.getElementById('username').value;
@@ -181,7 +172,6 @@ async function attemptLogin(event) {
     }
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 async function logout() {
     try {
         const response = await fetch('/logout', {
@@ -210,7 +200,6 @@ async function logout() {
             // Clear the account details button
             document.getElementById('user-button').innerText = 'User';
 
-            // outputDiv.innerHTML = ''; // Clear the chat history TODO: when separated you need to find a way to maintain this functionality in the chat page
         }
     }
     catch (error) {
@@ -218,7 +207,6 @@ async function logout() {
     }
 }
 
-// TODO: PUT INTO SEPARATE SCRIPT
 async function createUser(event) {
     event.preventDefault();
     const username = document.getElementById('register-username').value;

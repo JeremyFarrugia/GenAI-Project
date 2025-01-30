@@ -34,25 +34,9 @@ import time
 """
 TODO: 
 users
-- modal popups/updates instead of alerts
 - profile?
 
-chat persistance
-- store chat history
-- delete chat?
-
-share chat?
-public chat page?
-
-audio generation
-- TTS & sound effects
-
-story creation
-
-images
 """
-
-AUTHENTICATION_TOKEN = 'a123' # TODO - Delete?
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 STATIC_DIR = os.path.join(SCRIPT_DIR, 'static')
@@ -88,8 +72,7 @@ tts_model = VitsModel.from_pretrained("facebook/mms-tts-eng") # https://huggingf
 tokeniser = AutoTokenizer.from_pretrained("facebook/mms-tts-eng") 
 
 image_model = "stabilityai/sdxl-turbo" # https://huggingface.co/stabilityai/sdxl-turbo
-scheduler = DPMSolverMultistepScheduler.from_pretrained(image_model, subfolder="scheduler")
-image_pipe = AutoPipelineForText2Image.from_pretrained(image_model, scheduler=scheduler, torch_dtype=torch.float16, variant="fp16").to("cuda")
+
 
 audio_model = None 
 music_model = None
@@ -99,6 +82,8 @@ if not DEBUG: # Safety - See above (DEBUG flag)
     #music_model = MusicGen.get_pretrained('facebook/musicgen-melody') # https://huggingface.co/facebook/musicgen-melody
     music_model = MusicGen.get_pretrained('facebook/musicgen-medium') # Switched away from melody since it had features that were not needed (large caused memory errors) https://huggingface.co/facebook/musicgen-medium
     music_model.set_generation_params(duration=20)
+    scheduler = DPMSolverMultistepScheduler.from_pretrained(image_model, subfolder="scheduler")
+    image_pipe = AutoPipelineForText2Image.from_pretrained(image_model, scheduler=scheduler, torch_dtype=torch.float16, variant="fp16").to("cuda")
 
 # User Model
 class User(db.Model):
@@ -201,18 +186,6 @@ def init_db() -> None:
         log_to_console("User Database found.", tag="DATABASE", spacing=1)
 
 #-----------------------------------------------------Helper Functions-----------------------------------------------------#
-
-# Authentication function - return True if the user is authorised to access the file, False otherwise
-def authenticate(token: str) -> bool:
-    return token == AUTHENTICATION_TOKEN
-    
-# Authenticate and send the file to the client
-def authenticate_and_send_file(token: str, file_path: str):
-    if authenticate(token):
-        print('Authenticated, sending', file_path, 'to the client...')
-        return send_from_directory('static', file_path)
-    else:
-        abort(403)
 
 def create_user(user_name: str, password: str) -> None:
     """
@@ -319,6 +292,9 @@ def generate_image_file(description: str, output_path: str) -> None:
     Generate an image file from the given description and save it to the output path
     """
     log_to_console(f"Generating image file for description: {description}", tag="GENERATE-IMAGE-FILE", spacing=1)
+
+    if DEBUG:
+        raise ValueError("Image generation is disabled in debug mode")
 
     try:
         # Style prompts dictionary
@@ -589,8 +565,7 @@ def public_stories():
         if not story['isPublic']:
             continue
 
-        thumbnail = os.path.join(story['data_path'], 'thumbnail.png') # TODO - I decided to use enumerations for the story path instead of the title
-        #thumbnail = os.path.join(USERDATA_DIR, story['username'], 'stories', story['title'], 'thumbnail.jpg')
+        thumbnail = os.path.join(story['data_path'], 'thumbnail.png')
 
         thumbnail = get_thumbnail(thumbnail)
 
@@ -656,7 +631,6 @@ def story(storyID):
         contentBlocks = []
 
         for i, paragraph in enumerate(paragraphs, start=0):
-            # TODO: Load audio and images or something idk
             contentBlocks.append({
                 'type': 'text',
                 'text': paragraph,
@@ -779,7 +753,7 @@ def tts_request():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/generate-audio', methods=['POST'])
-def sound_effect_request(): #TODO - change implementation to be more suitable for story ornamentation
+def sound_effect_request():
     try:
         # disable debug mode (debug mode was causing some issue, instead of investigating, I just disabled and re-enabled later)
         if DEBUG:
@@ -979,7 +953,7 @@ def create_story_structure(story_content: str, data_path: str) -> dict:
         max_tokens=2048,
         response_format={"type": "json_object"},
         top_p=1
-    ) # TODO - Music prompt
+    )
 
     log_to_console(f"Generated story structure: {json_story.choices[0].message.content}", tag="GENERATE-STORY", spacing=1)
 
@@ -1043,8 +1017,6 @@ def generate_story(data):
 
     save_paragraphs(story_sequence, data_path)
     
-
-    # Currently all stories are private and need to be manually set to public TODO - remember to implement this 
     story_num = add_story_to_db(title=title, data_path=data_path, isPublic=False, user_id=User.query.filter_by(username=username).first().id)
     emit('story-complete', {'message': 'Story generated successfully!', 'title': title, 'url': f'/story-{story_num}'})
 
@@ -1202,8 +1174,6 @@ if __name__ == '__main__':
 
     init_db()
 
-    #fix_userData()  # TODO - remove once all users have been fixed
-
     if CLEAR_TEMP_ON_START:
         clear_all_temp_files()
 
@@ -1213,6 +1183,5 @@ if __name__ == '__main__':
         delete_redundant_users()
         if DELETE_STORIES:
             clear_stories()
-
 
     app.run(debug=DEBUG)

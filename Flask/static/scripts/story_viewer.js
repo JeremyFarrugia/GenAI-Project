@@ -130,9 +130,6 @@ async function transitionToNextAudio() {
         return;
     }
 
-    // TODO: Highlight the current paragraph
-    // TODO: Also add the sound prompts to the paragraphs cause I feel like it's too confusing and out of place
-
     nextAudio = ''
     if (soundEffectNext) {
         nextAudio = `audio_${currentIndex}`;
